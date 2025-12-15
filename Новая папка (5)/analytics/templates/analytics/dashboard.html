@@ -1,0 +1,82 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Big Data Аналитика</title>
+  <link rel="stylesheet" href="{% static 'analytics/styles.css' %}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Jango | Аналитика</div>
+    <div class="status">
+      {% if user.is_authenticated %}
+        <span>Пользователь: {{ user.username }}</span> ·
+        <a class="link" href="{% url 'logout' %}">Выйти</a>
+      {% else %}
+        <a class="link" href="{% url 'login' %}">Войти</a> ·
+        <a class="link" href="{% url 'analytics:register' %}">Регистрация</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>Сводка</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="label">Строк</div>
+          <div class="value">{{ summary.rows }}</div>
+        </div>
+        <div class="card">
+          <div class="label">Среднее</div>
+          <div class="value">{{ summary.avg }}</div>
+        </div>
+        <div class="card">
+          <div class="label">Макс</div>
+          <div class="value">{{ summary.max }}</div>
+        </div>
+        <div class="card">
+          <div class="label">Мин</div>
+          <div class="value">{{ summary.min }}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Нагрузка по времени</h2>
+      <canvas id="trendChart" height="120"></canvas>
+    </section>
+
+    <section class="panel">
+      <h2>Распределение по типам потоков</h2>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Категория</th>
+            <th>Строк</th>
+            <th>Среднее значение</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in by_category %}
+            <tr>
+              <td>{{ row.category }}</td>
+              <td>{{ row.rows }}</td>
+              <td>{{ row.avg_value|floatformat:2 }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const timeseries = {{ timeseries|safe }};
+  </script>
+  <script src="{% static 'analytics/dashboard.js' %}"></script>
+</body>
+</html>
+

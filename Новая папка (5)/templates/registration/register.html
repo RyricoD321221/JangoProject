@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Регистрация</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e5e7eb; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .card { background: #111827; padding: 24px 26px; border-radius: 12px; width: 380px; border: 1px solid #1f2937; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+    h1 { margin: 0 0 16px; font-size: 22px; }
+    form { display: grid; gap: 12px; }
+    label { font-size: 14px; color: #cbd5e1; }
+    input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #1f2937; background: #0b1222; color: #e5e7eb; }
+    button { padding: 10px 12px; border: none; border-radius: 10px; background: #22d3ee; color: #0b1222; font-weight: 700; cursor: pointer; }
+    .hint { color: #94a3b8; font-size: 14px; }
+    .link { color: #38bdf8; text-decoration: none; }
+    .errorlist { color: #fca5a5; margin: 0 0 8px; padding-left: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Регистрация</h1>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      <div>
+        <label for="id_username">Логин</label>
+        {{ form.username }}
+      </div>
+      <div>
+        <label for="id_password1">Пароль</label>
+        {{ form.password1 }}
+      </div>
+      <div>
+        <label for="id_password2">Повтор пароля</label>
+        {{ form.password2 }}
+      </div>
+      <button type="submit">Создать аккаунт</button>
+    </form>
+    <p class="hint">Уже есть аккаунт? <a class="link" href="{% url 'login' %}">Войти</a></p>
+  </div>
+</body>
+</html>
+
