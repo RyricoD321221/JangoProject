@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Big Data Аналитика</title>
-  <link rel="stylesheet" href="{% static 'analytics/styles.css' %}">
+  <link rel="stylesheet" href="{% static 'analytics/styles.css' %}?v=2">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -14,8 +14,11 @@
     <div class="status">
       {% if user.is_authenticated %}
         <span>Пользователь: {{ user.username }}</span> ·
-        <a class="link" href="{% url 'login' %}">Выйти</a>
+        <a class="link" href="{% url 'analytics:news' %}">Новости</a> ·
+        <a class="link" href="{% url 'analytics:cabinet' %}">Личный кабинет</a> ·
+        <a class="link" href="{% url 'logout' %}">Выйти</a>
       {% else %}
+        <a class="link" href="{% url 'analytics:news' %}">Новости</a> ·
         <a class="link" href="{% url 'login' %}">Войти</a> ·
         <a class="link" href="{% url 'analytics:register' %}">Регистрация</a>
       {% endif %}

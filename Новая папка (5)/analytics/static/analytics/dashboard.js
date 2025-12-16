@@ -13,8 +13,8 @@
         {
           label: "Среднее значение за час",
           data: values,
-          borderColor: "#22d3ee",
-          backgroundColor: "rgba(34, 211, 238, 0.2)",
+          borderColor: "#f5f5f5",
+          backgroundColor: "rgba(245, 245, 245, 0.08)",
           tension: 0.3,
           fill: true,
         },

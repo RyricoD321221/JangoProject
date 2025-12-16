@@ -1,7 +1,8 @@
 from django.contrib import admin
-from django.contrib.auth import views as auth_views
 from django.urls import path, include
 
+from analytics import views as analytics_views
+from django.contrib.auth import views as auth_views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -12,7 +13,7 @@ urlpatterns = [
     ),
     path(
         "accounts/logout/",
-        auth_views.LogoutView.as_view(),
+        analytics_views.logout_view,
         name="logout",
     ),
     path("", include("analytics.urls")),

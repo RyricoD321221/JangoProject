@@ -1,0 +1,79 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Личный кабинет</title>
+  <link rel="stylesheet" href="{% static 'analytics/styles.css' %}?v=2">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Jango | Личный кабинет</div>
+    <div class="status">
+      <span>Пользователь: {{ user.username }}</span> ·
+      <a class="link" href="{% url 'analytics:news' %}">Новости</a> ·
+      <a class="link" href="{% url 'analytics:dashboard' %}">Дашборд</a> ·
+      <a class="link" href="{% url 'logout' %}">Выйти</a>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>Данные профиля</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="label">Email</div>
+          <div class="value">{{ account.email }}</div>
+        </div>
+        <div class="card">
+          <div class="label">Имя</div>
+          <div class="value">{{ account.first_name }}</div>
+        </div>
+        <div class="card">
+          <div class="label">Фамилия</div>
+          <div class="value">{{ account.last_name }}</div>
+        </div>
+      </div>
+      <div class="meta">
+        <div>Дата регистрации: {{ account.joined|date:"d.m.Y H:i" }}</div>
+        <div>Последний вход: {{ account.last_login|date:"d.m.Y H:i" }}</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Активность за сутки</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="label">Событий</div>
+          <div class="value">{{ activity.rows_24h }}</div>
+        </div>
+        <div class="card">
+          <div class="label">Среднее значение</div>
+          <div class="value">{{ activity.avg_24h }}</div>
+        </div>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Время</th>
+            <th>Категория</th>
+            <th>Значение</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in activity.last_values %}
+            <tr>
+              <td>{{ item.ts }}</td>
+              <td>{{ item.category }}</td>
+              <td>{{ item.value }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>
+
+

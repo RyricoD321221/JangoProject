@@ -1,0 +1,54 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Новости</title>
+  <link rel="stylesheet" href="{% static 'analytics/styles.css' %}?v=2">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Jango | Новости</div>
+    <div class="status">
+      <a class="link" href="{% url 'analytics:news' %}">Новости</a>
+      {% if user.is_authenticated %}
+        · <a class="link" href="{% url 'analytics:dashboard' %}">Дашборд</a>
+        · <a class="link" href="{% url 'analytics:cabinet' %}">Личный кабинет</a>
+        · <a class="link" href="{% url 'logout' %}">Выйти</a>
+      {% else %}
+        · <a class="link" href="{% url 'login' %}">Войти</a>
+        · <a class="link" href="{% url 'analytics:register' %}">Регистрация</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="hero">
+      <span class="pill">свежее</span>
+      <h1>{{ hero.title }}</h1>
+      <p>{{ hero.subtitle }}</p>
+      <a class="cta" href="{% url 'analytics:dashboard' %}">{{ hero.cta }}</a>
+    </section>
+
+    <section class="panel">
+      <h2>Последние заметки</h2>
+      <div class="news-grid">
+        {% for item in news %}
+          <article class="news-card">
+            <div class="news-meta">
+              <span>{{ item.tag }}</span>
+              <span>{{ item.date }}</span>
+            </div>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.excerpt }}</p>
+            <a href="{% url 'login' %}" class="link">Подробнее</a>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+
+

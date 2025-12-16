@@ -5,16 +5,64 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Вход</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e5e7eb; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .card { background: #111827; padding: 24px 26px; border-radius: 12px; width: 360px; border: 1px solid #1f2937; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
-    h1 { margin: 0 0 16px; font-size: 22px; }
-    form { display: grid; gap: 12px; }
-    label { font-size: 14px; color: #cbd5e1; }
-    input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #1f2937; background: #0b1222; color: #e5e7eb; }
-    button { padding: 10px 12px; border: none; border-radius: 10px; background: #22d3ee; color: #0b1222; font-weight: 700; cursor: pointer; }
-    .hint { color: #94a3b8; font-size: 14px; }
-    .link { color: #38bdf8; text-decoration: none; }
-    .errorlist { color: #fca5a5; margin: 0 0 8px; padding-left: 16px; }
+    :root {
+      --bg: #0a0a0a;
+      --panel: #111111;
+      --text: #f5f5f5;
+      --muted: #a0a0a0;
+      --border: #1d1d1d;
+      --shadow: 0 18px 50px rgba(0,0,0,0.55);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 20% 20%, #121212, #050505);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 16px;
+    }
+    .card {
+      background: var(--panel);
+      padding: 28px 30px;
+      border-radius: 16px;
+      width: 380px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    h1 {
+      margin: 0 0 18px;
+      font-size: 24px;
+      letter-spacing: -0.3px;
+    }
+    form { display: grid; gap: 14px; }
+    label { font-size: 14px; color: var(--muted); }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0c0c0c;
+      color: var(--text);
+    }
+    button {
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #f5f5f5;
+      color: #0b0b0b;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+    .hint { color: var(--muted); font-size: 14px; margin-top: 12px; }
+    .link { color: #ffffff; text-decoration: none; border-bottom: 1px solid #2a2a2a; padding-bottom: 1px; }
+    .link:hover { border-color: #ffffff; }
+    .errorlist { color: #ffb4a6; margin: 0 0 6px; padding-left: 16px; }
   </style>
 </head>
 <body>
