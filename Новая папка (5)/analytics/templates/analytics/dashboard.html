@@ -14,7 +14,7 @@
     <div class="status">
       {% if user.is_authenticated %}
         <span>Пользователь: {{ user.username }}</span> ·
-        <a class="link" href="{% url 'logout' %}">Выйти</a>
+        <a class="link" href="{% url 'login' %}">Выйти</a>
       {% else %}
         <a class="link" href="{% url 'login' %}">Войти</a> ·
         <a class="link" href="{% url 'analytics:register' %}">Регистрация</a>

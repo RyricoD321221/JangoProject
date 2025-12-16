@@ -24,14 +24,22 @@
       {% csrf_token %}
       {{ form.non_field_errors }}
       <div>
+        {% if form.username.errors %}<div class="errorlist">{{ form.username.errors }}</div>{% endif %}
         <label for="id_username">Логин</label>
         {{ form.username }}
       </div>
       <div>
+        {% if form.email.errors %}<div class="errorlist">{{ form.email.errors }}</div>{% endif %}
+        <label for="id_email">Email</label>
+        {{ form.email }}
+      </div>
+      <div>
+        {% if form.password1.errors %}<div class="errorlist">{{ form.password1.errors }}</div>{% endif %}
         <label for="id_password1">Пароль</label>
         {{ form.password1 }}
       </div>
       <div>
+        {% if form.password2.errors %}<div class="errorlist">{{ form.password2.errors }}</div>{% endif %}
         <label for="id_password2">Повтор пароля</label>
         {{ form.password2 }}
       </div>

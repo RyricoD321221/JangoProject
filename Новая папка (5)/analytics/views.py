@@ -4,8 +4,10 @@ from datetime import datetime, timedelta
 import pandas as pd
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm
 from django.shortcuts import render, redirect
+
+from .forms import RegistrationForm
 
 
 def _generate_sample_dataframe(user, rows: int = 1000) -> pd.DataFrame:
@@ -72,13 +74,13 @@ def register(request):
         return redirect("analytics:dashboard")
 
     if request.method == "POST":
-        form = UserCreationForm(request.POST)
+        form = RegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
             login(request, user)
             return redirect("analytics:dashboard")
     else:
-        form = UserCreationForm()
+        form = RegistrationForm()
 
     return render(request, "registration/register.html", {"form": form})
 
