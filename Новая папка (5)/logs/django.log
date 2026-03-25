@@ -1,0 +1,46 @@
+INFO 2026-01-18 19:48:31,630 autoreload Watching for file changes with StatReloader
+INFO 2026-01-18 19:48:39,796 basehttp "GET / HTTP/1.1" 200 2496
+INFO 2026-01-18 19:48:39,867 basehttp "GET /static/analytics/styles.css?v=2 HTTP/1.1" 200 3820
+INFO 2026-01-18 19:48:42,656 basehttp "GET /accounts/login/ HTTP/1.1" 200 2757
+INFO 2026-01-18 19:48:50,106 basehttp "POST /accounts/login/ HTTP/1.1" 302 0
+INFO 2026-01-18 19:48:54,812 basehttp "GET /register/ HTTP/1.1" 302 0
+INFO 2026-01-18 19:48:57,004 basehttp "GET /accounts/login/ HTTP/1.1" 200 2757
+INFO 2026-01-18 19:48:57,980 basehttp "GET /register/ HTTP/1.1" 302 0
+INFO 2026-01-18 19:49:00,891 basehttp "GET / HTTP/1.1" 200 2566
+INFO 2026-01-18 19:49:14,764 basehttp "GET / HTTP/1.1" 200 2496
+INFO 2026-01-18 19:49:14,862 basehttp "GET /static/analytics/styles.css?v=2 HTTP/1.1" 200 3820
+WARNING 2026-01-18 19:49:14,928 log Not Found: /favicon.ico
+WARNING 2026-01-18 19:49:14,928 basehttp "GET /favicon.ico HTTP/1.1" 404 3828
+INFO 2026-01-18 19:49:16,101 basehttp "GET /accounts/login/ HTTP/1.1" 200 2757
+INFO 2026-01-18 19:49:17,080 basehttp "GET /register/ HTTP/1.1" 200 3273
+INFO 2026-01-18 19:49:29,446 basehttp "POST /register/ HTTP/1.1" 200 3478
+INFO 2026-01-18 19:49:32,428 basehttp "GET /register/ HTTP/1.1" 200 3273
+INFO 2026-01-18 19:49:33,927 basehttp "GET /accounts/login/ HTTP/1.1" 200 2757
+INFO 2026-01-18 19:49:35,838 basehttp "POST /accounts/login/ HTTP/1.1" 200 3007
+INFO 2026-01-18 19:49:39,075 basehttp "POST /accounts/login/ HTTP/1.1" 302 0
+WARNING 2026-01-18 19:49:39,482 log Forbidden (CSRF token from POST incorrect.): /accounts/login/
+WARNING 2026-01-18 19:49:39,483 basehttp "POST /accounts/login/ HTTP/1.1" 403 2545
+WARNING 2026-01-18 19:49:45,536 log Forbidden (CSRF token from POST incorrect.): /accounts/login/
+WARNING 2026-01-18 19:49:45,537 basehttp "POST /accounts/login/ HTTP/1.1" 403 2545
+INFO 2026-01-18 19:49:46,856 basehttp "GET /accounts/login/ HTTP/1.1" 200 2757
+WARNING 2026-01-18 19:50:10,822 log Forbidden (CSRF token from POST incorrect.): /register/
+WARNING 2026-01-18 19:50:10,822 basehttp "POST /register/ HTTP/1.1" 403 2545
+INFO 2026-01-18 19:50:12,436 basehttp "GET /register/ HTTP/1.1" 302 0
+INFO 2026-01-18 19:50:20,761 basehttp "GET /news/ HTTP/1.1" 200 2566
+INFO 2026-01-18 19:50:22,485 basehttp "GET /accounts/logout/ HTTP/1.1" 302 0
+INFO 2026-01-18 19:50:22,487 basehttp "GET /news/ HTTP/1.1" 200 2496
+INFO 2026-01-18 19:50:27,665 autoreload C:\Users\yangi\Desktop\JangoProject\Новая папка (5)\config\settings.py changed, reloading.
+INFO 2026-01-18 19:50:28,146 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-18 19:50:42,535 log Not Found: /.well-known/appspecific/com.chrome.devtools.json
+WARNING 2026-01-18 19:50:42,535 basehttp "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 3939
+WARNING 2026-01-18 19:50:59,923 log Forbidden (CSRF cookie not set.): /register/
+WARNING 2026-01-18 19:50:59,924 basehttp "POST /register/ HTTP/1.1" 403 3331
+WARNING 2026-01-18 19:50:59,962 log Not Found: /.well-known/appspecific/com.chrome.devtools.json
+WARNING 2026-01-18 19:50:59,963 basehttp "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 3939
+INFO 2026-01-18 19:51:11,688 basehttp "GET /register/ HTTP/1.1" 200 3273
+INFO 2026-01-18 19:51:18,406 basehttp "POST /register/ HTTP/1.1" 200 3641
+INFO 2026-01-18 19:51:21,069 basehttp "GET /accounts/login/ HTTP/1.1" 200 2757
+INFO 2026-01-18 19:51:26,707 basehttp "GET /register/ HTTP/1.1" 200 3273
+INFO 2026-01-18 19:51:37,724 basehttp "POST /register/ HTTP/1.1" 302 0
+WARNING 2026-01-18 19:51:51,010 log Forbidden (CSRF token from POST incorrect.): /register/
+WARNING 2026-01-18 19:51:51,010 basehttp "POST /register/ HTTP/1.1" 403 2545

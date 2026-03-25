@@ -13,6 +13,7 @@
     <div class="status">
       <span>Пользователь: {{ user.username }}</span> ·
       <a class="link" href="{% url 'analytics:news' %}">Новости</a> ·
+      <a class="link" href="{% url 'analytics:upload' %}">Загрузка CSV</a> ·
       <a class="link" href="{% url 'analytics:dashboard' %}">Дашборд</a> ·
       <a class="link" href="{% url 'logout' %}">Выйти</a>
     </div>

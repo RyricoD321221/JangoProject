@@ -11,6 +11,7 @@ urlpatterns = [
     path("dashboard/", login_required(views.dashboard), name="dashboard"),
     path("news/", views.news, name="news"),  # алиас
     path("cabinet/", login_required(views.cabinet), name="cabinet"),
+    path("upload/", login_required(views.upload_csv), name="upload"),
     path("register/", views.register, name="register"),
 ]
 

@@ -201,3 +201,162 @@ a:visited { color: var(--accent); }
   .topbar { flex-direction: column; gap: 6px; align-items: flex-start; }
 }
 
+.meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.hint.subtle {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #0b0b0b;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.alert {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+}
+
+.alert.error {
+  border-color: rgba(255,107,107,0.55);
+  background: rgba(255,107,107,0.10);
+  color: #ffd1cc;
+}
+
+.alert.success {
+  border-color: rgba(74,222,128,0.55);
+  background: rgba(74,222,128,0.10);
+  color: #b7f7cf;
+}
+
+.form-row {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+input[type="file"] {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #0b0b0b;
+  color: var(--text);
+  outline: none;
+}
+
+input[type="file"]::file-selector-button {
+  margin-right: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f5f5f5;
+  color: #0b0b0b;
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+input[type="file"]:hover::file-selector-button {
+  filter: brightness(0.96);
+}
+
+.topn-input {
+  width: 180px;
+  max-width: 100%;
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--border) !important;
+  background: #0b0b0b !important;
+  color: var(--text) !important;
+  outline: none !important;
+}
+
+.topn-input:focus,
+input[type="file"]:focus {
+  border-color: #3a3a3a;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+}
+
+/* Убираем стрелки у input type=number */
+.topn-input::-webkit-outer-spin-button,
+.topn-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.topn-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0b0b0b;
+  width: fit-content;
+}
+
+.toggle-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #e5e7eb;
+}
+
+.toggle-text {
+  color: #d1d5db;
+  font-size: 14px;
+}
+
+.validation-box {
+  margin-top: 6px;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+#analyzeBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.sub {
+  margin: 14px 0 6px;
+  font-size: 16px;
+  color: var(--text);
+}
+
+

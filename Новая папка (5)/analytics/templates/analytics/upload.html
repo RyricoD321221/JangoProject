@@ -1,0 +1,275 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Загрузка CSV</title>
+  <link rel="stylesheet" href="{% static 'analytics/styles.css' %}?v=4">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Jango | Загрузка CSV</div>
+    <div class="status">
+      <span>Пользователь: {{ user.username }}</span> ·
+      <a class="link" href="{% url 'analytics:news' %}">Новости</a> ·
+      <a class="link" href="{% url 'analytics:dashboard' %}">Дашборд</a> ·
+      <a class="link" href="{% url 'analytics:cabinet' %}">Личный кабинет</a> ·
+      <a class="link" href="{% url 'logout' %}">Выйти</a>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>Загрузка данных CSV</h2>
+      <p class="hint">
+        Адаптивный режим анализа: обязательных колонок нет.
+        Для расширенного анализа подойдут таблицы с датами, строковыми и числовыми полями.
+      </p>
+
+      {% if error %}
+        <div class="alert error" role="alert">{{ error }}</div>
+      {% endif %}
+      {% if success %}
+        <div class="alert success" role="status">{{ success }}</div>
+      {% endif %}
+
+      <form id="csvUploadForm" method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+
+        <div class="form-row">
+          <label class="field-label" for="csvFile">Файл CSV</label>
+          <input
+            id="csvFile"
+            name="csv_file"
+            type="file"
+            accept=".csv,text/csv"
+            required
+          >
+        </div>
+
+        <div class="form-row">
+          <label class="field-label" for="topNInput">Top-N для строковых колонок</label>
+          <input class="topn-input" id="topNInput" name="top_n" type="number" min="1" step="1" value="{{ top_n|default:5 }}">
+        </div>
+
+        <div class="form-row">
+          <label class="toggle-row">
+            <input name="show_all_string_values" type="checkbox" {% if show_all_string_values %}checked{% endif %}>
+            <span class="toggle-text">Показать все значения для строковых колонок</span>
+          </label>
+          <div class="hint subtle">Может быть тяжело на очень больших файлах.</div>
+        </div>
+
+        <div id="validationBox" class="meta validation-box" aria-live="polite">
+          <div id="validationMessage" class="hint">Выберите CSV-файл для проверки формата.</div>
+        </div>
+
+        <div class="form-actions">
+          <button id="analyzeBtn" class="button" type="submit" disabled>
+            Проанализировать
+          </button>
+          <span id="clientHint" class="hint"></span>
+        </div>
+      </form>
+    </section>
+
+    {% if results %}
+      <section class="panel">
+        <h2>Результаты анализа (Apache Spark)</h2>
+
+        {% if results.warnings %}
+          {% for warn in results.warnings %}
+            <div class="alert error">{{ warn }}</div>
+          {% endfor %}
+        {% endif %}
+
+        <div class="cards">
+          <div class="card">
+            <div class="label">Строк</div>
+            <div class="value">{{ results.summary.rows }}</div>
+          </div>
+          <div class="card">
+            <div class="label">Колонок</div>
+            <div class="value">{{ results.columns_count }}</div>
+          </div>
+          {% if results.summary.avg is not None %}
+            <div class="card">
+              <div class="label">Среднее (value)</div>
+              <div class="value">{{ results.summary.avg }}</div>
+            </div>
+            <div class="card">
+              <div class="label">Макс (value)</div>
+              <div class="value">{{ results.summary.max }}</div>
+            </div>
+            <div class="card">
+              <div class="label">Мин (value)</div>
+              <div class="value">{{ results.summary.min }}</div>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if results.by_category %}
+          <h3 class="sub">Распределение по category</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Категория</th>
+                <th>Строк</th>
+                <th>Среднее значение</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in results.by_category %}
+                <tr>
+                  <td>{{ row.category }}</td>
+                  <td>{{ row.rows }}</td>
+                  <td>{{ row.avg_value|floatformat:2 }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+
+        {% if results.numeric_stats %}
+          <h3 class="sub">Статистика по числовым колонкам</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Колонка</th>
+                <th>Count</th>
+                <th>Avg</th>
+                <th>Min</th>
+                <th>Max</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in results.numeric_stats %}
+                <tr>
+                  <td>{{ row.column }}</td>
+                  <td>{{ row.count }}</td>
+                  <td>{{ row.avg|floatformat:2 }}</td>
+                  <td>{{ row.min|floatformat:2 }}</td>
+                  <td>{{ row.max|floatformat:2 }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+
+        <h3 class="sub">Схема данных</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Колонка</th>
+              <th>Тип Spark</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for col in results.schema %}
+              <tr>
+                <td>{{ col.name }}</td>
+                <td>{{ col.type }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        {% if results.timeseries %}
+          <h3 class="sub">Timeseries (последние 24 часа)</h3>
+          <canvas id="timeChart" height="120"></canvas>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Час</th>
+                <th>Значение</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in results.timeseries %}
+                <tr>
+                  <td>{{ p.ts }}</td>
+                  <td>{{ p.value|floatformat:2 }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+
+        <h3 class="sub">
+          {% if show_all_string_values %}Все значения строковых колонок{% else %}Топ-{{ top_n|default:5 }} значений для строковых колонок{% endif %}
+        </h3>
+        {% if results.string_top_values %}
+          {% for col_name, top_rows in results.string_top_values.items %}
+            <h4 class="sub">{{ col_name }}</h4>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Значение</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in top_rows %}
+                  <tr>
+                    <td>{{ item.value }}</td>
+                    <td>{{ item.count }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endfor %}
+        {% else %}
+          <div class="hint">Строковые колонки для топ-N не обнаружены.</div>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    <section class="panel">
+      <h2>Подсказка</h2>
+      <div class="hint">
+        Колонка <span class="mono">ts</span> должна быть датой (например, <span class="mono">2025-12-13 09:00</span>),
+        <span class="mono">value</span> — числом, <span class="mono">category</span> — строкой (например, <span class="mono">stream</span>).
+      </div>
+    </section>
+  </main>
+
+  <script>
+    window.__EXPECTED_COLUMNS__ = ["ts", "category", "value"];
+    window.__ALLOWED_CATEGORIES__ = ["stream", "batch", "api"];
+    window.__SPARK_TS__ = {% if results %}{{ results.timeseries|safe }}{% else %}[]{% endif %};
+  </script>
+  <script src="{% static 'analytics/upload.js' %}"></script>
+  <script>
+    (() => {
+      const data = window.__SPARK_TS__ || [];
+      const ctx = document.getElementById("timeChart");
+      if (!ctx || data.length === 0 || typeof Chart === "undefined") return;
+
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: data.map((p) => p.ts),
+          datasets: [{
+            label: "Среднее value по часу",
+            data: data.map((p) => p.value),
+            borderColor: "#f5f5f5",
+            backgroundColor: "rgba(245, 245, 245, 0.08)",
+            fill: true,
+            tension: 0.3,
+          }],
+        },
+        options: {
+          plugins: { legend: { labels: { color: "#e5e7eb" } } },
+          scales: {
+            x: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
+            y: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
+          },
+        },
+      });
+    })();
+  </script>
+</body>
+</html>
+

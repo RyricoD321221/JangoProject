@@ -15,6 +15,7 @@
       {% if user.is_authenticated %}
         <span>Пользователь: {{ user.username }}</span> ·
         <a class="link" href="{% url 'analytics:news' %}">Новости</a> ·
+        <a class="link" href="{% url 'analytics:upload' %}">Загрузка CSV</a> ·
         <a class="link" href="{% url 'analytics:cabinet' %}">Личный кабинет</a> ·
         <a class="link" href="{% url 'logout' %}">Выйти</a>
       {% else %}
@@ -26,6 +27,23 @@
   </header>
 
   <main class="layout">
+    <section class="panel">
+      {% if dashboard_mode == "real" %}
+        <h2>Источник данных: последний загруженный CSV</h2>
+        <div class="hint">
+          Дашборд показывает результаты последнего анализа из страницы загрузки.
+          Колонок в наборе: {{ analysis_meta.columns_count|default:"—" }}.
+        </div>
+      {% else %}
+        <h2>Источник данных: демо-режим</h2>
+        <div class="hint">
+          Реальный анализ ещё не запускался. Загрузи CSV на странице
+          <a class="link" href="{% url 'analytics:upload' %}">Загрузка CSV</a>,
+          и дашборд начнёт показывать твои реальные данные.
+        </div>
+      {% endif %}
+    </section>
+
     <section class="panel">
       <h2>Сводка</h2>
       <div class="cards">
