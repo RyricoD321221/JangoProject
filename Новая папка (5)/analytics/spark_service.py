@@ -9,10 +9,76 @@ from typing import Any, Dict, List
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-from pyspark.sql.types import DoubleType, StringType
+from pyspark.sql.types import DoubleType, LongType, StringType
 
 
 EXPECTED_COLUMNS = ("ts", "category", "value")
+
+_COLUMN_RU_MAP = {
+    # базовые
+    "ts": "Дата/время",
+    "category": "Категория",
+    "value": "Значение",
+    # частые доменные
+    "patient_id": "ID пациента",
+    "patientid": "ID пациента",
+    "age": "Возраст",
+    "gender": "Пол",
+    "sex": "Пол",
+    "diagnosis": "Диагноз",
+    "diagnosis_code": "Код диагноза",
+    "id": "ID",
+    "date": "Дата",
+    "time": "Время",
+}
+
+_TOKEN_RU_MAP = {
+    "patient": "Пациент",
+    "id": "ID",
+    "age": "Возраст",
+    "gender": "Пол",
+    "sex": "Пол",
+    "diagnosis": "Диагноз",
+    "code": "Код",
+    "date": "Дата",
+    "time": "Время",
+    "status": "Статус",
+    "type": "Тип",
+    "group": "Группа",
+    "value": "Значение",
+    "category": "Категория",
+    "count": "Кол-во",
+}
+
+
+def _to_ru_column_name(name: Any) -> str:
+    """Heuristic mapping of column names to Russian labels."""
+    if name is None:
+        return ""
+    s = str(name).strip()
+    if not s:
+        return s
+
+    s_lower = s.lower()
+    if s_lower in _COLUMN_RU_MAP:
+        return _COLUMN_RU_MAP[s_lower]
+
+    # Если это уже кириллица — возвращаем как есть.
+    if any("\u0400" <= ch <= "\u04FF" for ch in s):
+        return s
+
+    parts = s_lower.replace("-", "_").split("_")
+    out: List[str] = []
+    for p in parts:
+        if not p:
+            continue
+        if p in _TOKEN_RU_MAP:
+            out.append(_TOKEN_RU_MAP[p])
+        elif p.isdigit():
+            out.append(p)
+        else:
+            out.append(p.capitalize())
+    return " ".join(out) if out else s
 
 
 class SparkAnalysisError(Exception):
@@ -117,9 +183,71 @@ import json
 import sys
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-from pyspark.sql.types import DoubleType, StringType
+from pyspark.sql.types import DoubleType, LongType, StringType
 
 EXPECTED_COLUMNS = ("ts", "category", "value")
+
+COLUMN_RU_MAP = {
+    "ts": "Дата/время",
+    "category": "Категория",
+    "value": "Значение",
+    "patient_id": "ID пациента",
+    "patientid": "ID пациента",
+    "age": "Возраст",
+    "gender": "Пол",
+    "sex": "Пол",
+    "diagnosis": "Диагноз",
+    "diagnosis_code": "Код диагноза",
+    "id": "ID",
+    "date": "Дата",
+    "time": "Время",
+}
+
+TOKEN_RU_MAP = {
+    "patient": "Пациент",
+    "id": "ID",
+    "age": "Возраст",
+    "gender": "Пол",
+    "sex": "Пол",
+    "diagnosis": "Диагноз",
+    "code": "Код",
+    "date": "Дата",
+    "time": "Время",
+    "status": "Статус",
+    "type": "Тип",
+    "group": "Группа",
+    "value": "Значение",
+    "category": "Категория",
+    "count": "Кол-во",
+}
+
+def to_ru_column_name(name):
+    if name is None:
+        return ""
+    s = str(name).strip()
+    if not s:
+        return s
+
+    s_lower = s.lower()
+    if s_lower in COLUMN_RU_MAP:
+        return COLUMN_RU_MAP[s_lower]
+
+    # Если это уже кириллица — возвращаем как есть.
+    if any("\u0400" <= ch <= "\u04FF" for ch in s):
+        return s
+
+    parts = s_lower.replace("-", "_").split("_")
+    out = []
+    for p in parts:
+        if not p:
+            continue
+        if p in TOKEN_RU_MAP:
+            out.append(TOKEN_RU_MAP[p])
+        elif p.isdigit():
+            out.append(p)
+        else:
+            out.append(p.capitalize())
+    return " ".join(out) if out else s
 
 def main():
     if len(sys.argv) < 5:
@@ -157,20 +285,47 @@ def main():
     for c in df.columns:
         num_col = f"{c}__num"
         num_df = df.withColumn(num_col, F.col(c).cast(DoubleType()))
+        # Берём статистики и одновременно определяем, "целочисленная" ли колонка
+        # (для этого проверяем отсутствие дробной части с небольшой погрешностью).
         stat_row = num_df.agg(
             F.count(F.col(num_col)).alias("count"),
             F.avg(F.col(num_col)).alias("avg"),
-            F.min(F.col(num_col)).alias("min"),
-            F.max(F.col(num_col)).alias("max"),
+            F.min(F.col(num_col)).alias("min_d"),
+            F.max(F.col(num_col)).alias("max_d"),
+            F.sum(
+                F.when(
+                    F.col(num_col).isNotNull()
+                    & (F.abs(F.col(num_col) - F.round(F.col(num_col))) > 1e-9),
+                    1,
+                ).otherwise(0)
+            ).alias("non_int_count"),
+            F.min(F.col(num_col).cast(LongType())).alias("min_int"),
+            F.max(F.col(num_col).cast(LongType())).alias("max_int"),
+            # Медиана: используем percentile_approx для отчёта.
+            F.expr(f"percentile_approx(`{num_col.replace('`','``')}`, 0.5)").alias("median"),
         ).collect()[0]
+
         if int(stat_row["count"]) > 0:
+            integer_like = int(stat_row["non_int_count"]) == 0
+            median_val = float(stat_row["median"]) if stat_row["median"] is not None else None
+            if integer_like:
+                median_decimals = 0 if median_val is not None and abs(median_val - round(median_val)) < 1e-9 else 1
+            else:
+                median_decimals = 2
+
             numeric_stats.append(
                 {
                     "column": c,
+                    "column_ru": to_ru_column_name(c),
                     "count": int(stat_row["count"]),
                     "avg": float(stat_row["avg"]),
-                    "min": float(stat_row["min"]),
-                    "max": float(stat_row["max"]),
+                    "median": median_val,
+                    "median_decimals": median_decimals,
+                    "integer_like": integer_like,
+                    "min": int(stat_row["min_int"]) if integer_like else float(stat_row["min_d"]),
+                    "max": int(stat_row["max_int"]) if integer_like else float(stat_row["max_d"]),
+                    "min_decimals": 0 if integer_like else 2,
+                    "max_decimals": 0 if integer_like else 2,
                 }
             )
 
@@ -213,7 +368,6 @@ def main():
             df.groupBy(F.date_trunc("hour", F.col("ts")).alias("hour"))
             .agg(F.avg("value").alias("value"))
             .orderBy(F.col("hour").desc())
-            .limit(24)
             .orderBy(F.col("hour").asc())
         )
         timeseries = [
@@ -223,21 +377,71 @@ def main():
 
     # Для строковых колонок: топ-N значений (исключая пустые).
     string_top_values = {}
+    SMALL_UNIQUE_LIMIT = 20
+    MEDIUM_UNIQUE_LIMIT = 100
+    TOP_VALUES_MEDIUM = 10
     for field in df.schema.fields:
         if field.dataType.simpleString() == "string":
             col_name = field.name
-            top_df = (
-                df.filter(F.col(col_name).isNotNull() & (F.trim(F.col(col_name)) != ""))
-                .groupBy(col_name)
-                .agg(F.count("*").alias("count"))
-                .orderBy(F.col("count").desc(), F.col(col_name).asc())
-            )
-            if not show_all:
-                top_df = top_df.limit(top_n)
-            string_top_values[col_name] = [
-                {"value": r[col_name], "count": int(r["count"])}
-                for r in top_df.collect()
-            ]
+            filtered = df.filter(F.col(col_name).isNotNull() & (F.trim(F.col(col_name)) != ""))
+            agg_row = filtered.agg(
+                F.count(F.lit(1)).alias("rows"),
+                F.countDistinct(F.col(col_name)).alias("unique_count"),
+            ).collect()[0]
+            unique_count = int(agg_row["unique_count"])
+            nonempty_rows = int(agg_row["rows"])
+            if unique_count <= 0:
+                continue
+
+            cardinality_percent = (unique_count / nonempty_rows * 100.0) if nonempty_rows > 0 else 0.0
+
+            if unique_count <= SMALL_UNIQUE_LIMIT:
+                values_df = (
+                    filtered.groupBy(col_name)
+                    .agg(F.count("*").alias("count"))
+                    .orderBy(F.col("count").desc(), F.col(col_name).asc())
+                )
+                values = [
+                    {"type": "value", "value": r[col_name], "count": int(r["count"])}
+                    for r in values_df.collect()
+                ]
+                string_top_values[col_name] = {
+                    "mode": "small",
+                    "column_ru": to_ru_column_name(col_name),
+                    "unique_count": unique_count,
+                    "cardinality_percent": float(cardinality_percent),
+                    "values": values,
+                }
+            elif unique_count <= MEDIUM_UNIQUE_LIMIT:
+                values_df = (
+                    filtered.groupBy(col_name)
+                    .agg(F.count("*").alias("count"))
+                    .orderBy(F.col("count").desc(), F.col(col_name).asc())
+                    .limit(TOP_VALUES_MEDIUM)
+                )
+                top_vals = [
+                    {"type": "value", "value": r[col_name], "count": int(r["count"])}
+                    for r in values_df.collect()
+                ]
+                other_unique = max(0, unique_count - len(top_vals))
+                top_vals.append(
+                    {"type": "other", "value": "Другие", "other_unique_count": other_unique}
+                )
+                string_top_values[col_name] = {
+                    "mode": "medium",
+                    "column_ru": to_ru_column_name(col_name),
+                    "unique_count": unique_count,
+                    "cardinality_percent": float(cardinality_percent),
+                    "values": top_vals,
+                }
+            else:
+                string_top_values[col_name] = {
+                    "mode": "high",
+                    "column_ru": to_ru_column_name(col_name),
+                    "unique_count": unique_count,
+                    "cardinality_percent": float(cardinality_percent),
+                    "values": [],
+                }
 
     warnings = []
     dropped_rows = total_rows_before_clean - int(summary_row["rows"])
@@ -252,7 +456,10 @@ def main():
             "min": (round(float(summary_row["min"]), 2) if summary_row["min"] is not None else None),
         },
         "columns_count": len(df.columns),
-        "schema": [{"name": f.name, "type": f.dataType.simpleString()} for f in df.schema.fields],
+        "schema": [
+            {"name": f.name, "type": f.dataType.simpleString(), "display_name": to_ru_column_name(f.name)}
+            for f in df.schema.fields
+        ],
         "numeric_stats": numeric_stats,
         "by_category": by_category,
         "timeseries": timeseries,
@@ -380,20 +587,47 @@ def analyze_csv_with_spark(
     for c in df.columns:
         num_col = f"{c}__num"
         num_df = df.withColumn(num_col, F.col(c).cast(DoubleType()))
+        # Берём статистики и одновременно определяем, "целочисленная" ли колонка
+        # (для этого проверяем отсутствие дробной части с небольшой погрешностью).
         stat_row = num_df.agg(
             F.count(F.col(num_col)).alias("count"),
             F.avg(F.col(num_col)).alias("avg"),
-            F.min(F.col(num_col)).alias("min"),
-            F.max(F.col(num_col)).alias("max"),
+            F.min(F.col(num_col)).alias("min_d"),
+            F.max(F.col(num_col)).alias("max_d"),
+            F.sum(
+                F.when(
+                    F.col(num_col).isNotNull()
+                    & (F.abs(F.col(num_col) - F.round(F.col(num_col))) > 1e-9),
+                    1,
+                ).otherwise(0)
+            ).alias("non_int_count"),
+            F.min(F.col(num_col).cast(LongType())).alias("min_int"),
+            F.max(F.col(num_col).cast(LongType())).alias("max_int"),
+            # Медиана: используем percentile_approx для отчёта.
+            F.expr(f"percentile_approx(`{num_col.replace('`','``')}`, 0.5)").alias("median"),
         ).collect()[0]
+
         if int(stat_row["count"]) > 0:
+            integer_like = int(stat_row["non_int_count"]) == 0
+            median_val = float(stat_row["median"]) if stat_row["median"] is not None else None
+            if integer_like:
+                median_decimals = 0 if median_val is not None and abs(median_val - round(median_val)) < 1e-9 else 1
+            else:
+                median_decimals = 2
+
             numeric_stats.append(
                 {
                     "column": c,
+                    "column_ru": _to_ru_column_name(c),
                     "count": int(stat_row["count"]),
                     "avg": float(stat_row["avg"]),
-                    "min": float(stat_row["min"]),
-                    "max": float(stat_row["max"]),
+                    "median": median_val,
+                    "median_decimals": median_decimals,
+                    "integer_like": integer_like,
+                    "min": int(stat_row["min_int"]) if integer_like else float(stat_row["min_d"]),
+                    "max": int(stat_row["max_int"]) if integer_like else float(stat_row["max_d"]),
+                    "min_decimals": 0 if integer_like else 2,
+                    "max_decimals": 0 if integer_like else 2,
                 }
             )
 
@@ -437,7 +671,6 @@ def analyze_csv_with_spark(
             df.groupBy(F.date_trunc("hour", F.col("ts")).alias("hour"))
             .agg(F.avg("value").alias("value"))
             .orderBy(F.col("hour").desc())
-            .limit(24)
             .orderBy(F.col("hour").asc())
         )
 
@@ -450,21 +683,71 @@ def analyze_csv_with_spark(
         ]
 
     string_top_values = {}
+    SMALL_UNIQUE_LIMIT = 20
+    MEDIUM_UNIQUE_LIMIT = 100
+    TOP_VALUES_MEDIUM = 10
     for field in df.schema.fields:
         if field.dataType.simpleString() == "string":
             col_name = field.name
-            top_df = (
-                df.filter(F.col(col_name).isNotNull() & (F.trim(F.col(col_name)) != ""))
-                .groupBy(col_name)
-                .agg(F.count("*").alias("count"))
-                .orderBy(F.col("count").desc(), F.col(col_name).asc())
-            )
-            if not show_all_string_values:
-                top_df = top_df.limit(top_n)
-            string_top_values[col_name] = [
-                {"value": r[col_name], "count": int(r["count"])}
-                for r in top_df.collect()
-            ]
+            filtered = df.filter(F.col(col_name).isNotNull() & (F.trim(F.col(col_name)) != ""))
+            agg_row = filtered.agg(
+                F.count(F.lit(1)).alias("rows"),
+                F.countDistinct(F.col(col_name)).alias("unique_count"),
+            ).collect()[0]
+            unique_count = int(agg_row["unique_count"])
+            nonempty_rows = int(agg_row["rows"])
+            if unique_count <= 0:
+                continue
+
+            cardinality_percent = (unique_count / nonempty_rows * 100.0) if nonempty_rows > 0 else 0.0
+
+            if unique_count <= SMALL_UNIQUE_LIMIT:
+                values_df = (
+                    filtered.groupBy(col_name)
+                    .agg(F.count("*").alias("count"))
+                    .orderBy(F.col("count").desc(), F.col(col_name).asc())
+                )
+                values = [
+                    {"type": "value", "value": r[col_name], "count": int(r["count"])}
+                    for r in values_df.collect()
+                ]
+                string_top_values[col_name] = {
+                    "mode": "small",
+                    "column_ru": _to_ru_column_name(col_name),
+                    "unique_count": unique_count,
+                    "cardinality_percent": float(cardinality_percent),
+                    "values": values,
+                }
+            elif unique_count <= MEDIUM_UNIQUE_LIMIT:
+                values_df = (
+                    filtered.groupBy(col_name)
+                    .agg(F.count("*").alias("count"))
+                    .orderBy(F.col("count").desc(), F.col(col_name).asc())
+                    .limit(TOP_VALUES_MEDIUM)
+                )
+                top_vals = [
+                    {"type": "value", "value": r[col_name], "count": int(r["count"])}
+                    for r in values_df.collect()
+                ]
+                other_unique = max(0, unique_count - len(top_vals))
+                top_vals.append(
+                    {"type": "other", "value": "Другие", "other_unique_count": other_unique}
+                )
+                string_top_values[col_name] = {
+                    "mode": "medium",
+                    "column_ru": _to_ru_column_name(col_name),
+                    "unique_count": unique_count,
+                    "cardinality_percent": float(cardinality_percent),
+                    "values": top_vals,
+                }
+            else:
+                string_top_values[col_name] = {
+                    "mode": "high",
+                    "column_ru": _to_ru_column_name(col_name),
+                    "unique_count": unique_count,
+                    "cardinality_percent": float(cardinality_percent),
+                    "values": [],
+                }
 
     warnings = []
     dropped_rows = total_rows_before_clean - int(summary_row["rows"])
@@ -481,7 +764,10 @@ def analyze_csv_with_spark(
             "min": (round(float(summary_row["min"]), 2) if summary_row["min"] is not None else None),
         },
         "columns_count": len(df.columns),
-        "schema": [{"name": f.name, "type": f.dataType.simpleString()} for f in df.schema.fields],
+        "schema": [
+            {"name": f.name, "type": f.dataType.simpleString(), "display_name": _to_ru_column_name(f.name)}
+            for f in df.schema.fields
+        ],
         "numeric_stats": numeric_stats,
         "by_category": by_category,
         "timeseries": timeseries,

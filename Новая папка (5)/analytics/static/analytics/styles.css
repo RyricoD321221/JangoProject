@@ -359,4 +359,38 @@ input[type="file"]:focus {
   color: var(--text);
 }
 
+.collapsible {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #0b0b0b;
+}
+
+.collapsible > summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--muted);
+}
+
+.collapsible[open] > summary::before {
+  content: "▾";
+}
+
+
+.time-controls {
+  margin: 10px 0 14px; /* отступ между заголовком блока и селектором масштаба */
+}
 

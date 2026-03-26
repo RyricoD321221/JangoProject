@@ -85,144 +85,186 @@
           {% endfor %}
         {% endif %}
 
-        <div class="cards">
-          <div class="card">
-            <div class="label">Строк</div>
-            <div class="value">{{ results.summary.rows }}</div>
+        <details class="collapsible" open>
+          <summary>Общие показатели</summary>
+          <div class="cards">
+            <div class="card">
+              <div class="label">Строк</div>
+              <div class="value">{{ results.summary.rows }}</div>
+            </div>
+            <div class="card">
+              <div class="label">Колонок</div>
+              <div class="value">{{ results.columns_count }}</div>
+            </div>
+            {% if results.summary.avg is not None %}
+              <div class="card">
+                <div class="label">Среднее (value)</div>
+                <div class="value">{{ results.summary.avg }}</div>
+              </div>
+              <div class="card">
+                <div class="label">Макс (value)</div>
+                <div class="value">{{ results.summary.max }}</div>
+              </div>
+              <div class="card">
+                <div class="label">Мин (value)</div>
+                <div class="value">{{ results.summary.min }}</div>
+              </div>
+            {% endif %}
           </div>
-          <div class="card">
-            <div class="label">Колонок</div>
-            <div class="value">{{ results.columns_count }}</div>
-          </div>
-          {% if results.summary.avg is not None %}
-            <div class="card">
-              <div class="label">Среднее (value)</div>
-              <div class="value">{{ results.summary.avg }}</div>
-            </div>
-            <div class="card">
-              <div class="label">Макс (value)</div>
-              <div class="value">{{ results.summary.max }}</div>
-            </div>
-            <div class="card">
-              <div class="label">Мин (value)</div>
-              <div class="value">{{ results.summary.min }}</div>
-            </div>
-          {% endif %}
-        </div>
+        </details>
 
         {% if results.by_category %}
-          <h3 class="sub">Распределение по category</h3>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Категория</th>
-                <th>Строк</th>
-                <th>Среднее значение</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in results.by_category %}
-                <tr>
-                  <td>{{ row.category }}</td>
-                  <td>{{ row.rows }}</td>
-                  <td>{{ row.avg_value|floatformat:2 }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        {% endif %}
-
-        {% if results.numeric_stats %}
-          <h3 class="sub">Статистика по числовым колонкам</h3>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Колонка</th>
-                <th>Count</th>
-                <th>Avg</th>
-                <th>Min</th>
-                <th>Max</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in results.numeric_stats %}
-                <tr>
-                  <td>{{ row.column }}</td>
-                  <td>{{ row.count }}</td>
-                  <td>{{ row.avg|floatformat:2 }}</td>
-                  <td>{{ row.min|floatformat:2 }}</td>
-                  <td>{{ row.max|floatformat:2 }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        {% endif %}
-
-        <h3 class="sub">Схема данных</h3>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Колонка</th>
-              <th>Тип Spark</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for col in results.schema %}
-              <tr>
-                <td>{{ col.name }}</td>
-                <td>{{ col.type }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-
-        {% if results.timeseries %}
-          <h3 class="sub">Timeseries (последние 24 часа)</h3>
-          <canvas id="timeChart" height="120"></canvas>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Час</th>
-                <th>Значение</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for p in results.timeseries %}
-                <tr>
-                  <td>{{ p.ts }}</td>
-                  <td>{{ p.value|floatformat:2 }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        {% endif %}
-
-        <h3 class="sub">
-          {% if show_all_string_values %}Все значения строковых колонок{% else %}Топ-{{ top_n|default:5 }} значений для строковых колонок{% endif %}
-        </h3>
-        {% if results.string_top_values %}
-          {% for col_name, top_rows in results.string_top_values.items %}
-            <h4 class="sub">{{ col_name }}</h4>
+          <details class="collapsible">
+            <summary>Категориальные данные (category)</summary>
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Значение</th>
-                  <th>Count</th>
+                  <th>Категория</th>
+                  <th>Строк</th>
+                  <th>Среднее (value)</th>
                 </tr>
               </thead>
               <tbody>
-                {% for item in top_rows %}
+                {% for row in results.by_category %}
                   <tr>
-                    <td>{{ item.value }}</td>
-                    <td>{{ item.count }}</td>
+                    <td>{{ row.category }}</td>
+                    <td>{{ row.rows }}</td>
+                    <td>{{ row.avg_value|floatformat:2 }}</td>
                   </tr>
                 {% endfor %}
               </tbody>
             </table>
-          {% endfor %}
-        {% else %}
-          <div class="hint">Строковые колонки для топ-N не обнаружены.</div>
+          </details>
         {% endif %}
+
+        {% if results.numeric_stats %}
+          <details class="collapsible">
+            <summary>Числовые данные</summary>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Колонка</th>
+                  <th>Кол-во</th>
+                  <th>Среднее</th>
+                  <th>Медиана</th>
+                  <th>Мин</th>
+                  <th>Макс</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in results.numeric_stats %}
+                  <tr>
+                    <td>{{ row.column_ru|default:row.column }}</td>
+                    <td>{{ row.count }}</td>
+                    <td>{{ row.avg|floatformat:2 }}</td>
+                    <td>{{ row.median|floatformat:row.median_decimals }}</td>
+                    <td>{{ row.min|floatformat:row.min_decimals }}</td>
+                    <td>{{ row.max|floatformat:row.max_decimals }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </details>
+        {% endif %}
+
+        <details class="collapsible">
+          <summary>Структура данных (схема)</summary>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Колонка</th>
+                <th>Тип Spark</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for col in results.schema %}
+                <tr>
+                  <td>{{ col.display_name|default:col.name }}</td>
+                  <td>{{ col.type }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </details>
+
+        {% if results.timeseries %}
+          <details class="collapsible" open>
+            <summary>Данные по датам (график)</summary>
+            <div class="time-controls">
+              <label class="field-label">
+                Масштаб
+                <select id="timeScaleSelect" class="topn-input">
+                  <option value="hour">Час</option>
+                  <option value="day" selected>День</option>
+                  <option value="month">Месяц</option>
+                  <option value="year">Год</option>
+                </select>
+              </label>
+            </div>
+            <canvas id="timeChart" height="120"></canvas>
+            <div class="cards">
+              <div class="card"><div class="label">Кол-во</div><div class="value" id="chartStatCount">—</div></div>
+              <div class="card"><div class="label">Сумма</div><div class="value" id="chartStatSum">—</div></div>
+              <div class="card"><div class="label">Среднее</div><div class="value" id="chartStatAvg">—</div></div>
+              <div class="card"><div class="label">Мин</div><div class="value" id="chartStatMin">—</div></div>
+              <div class="card"><div class="label">Макс</div><div class="value" id="chartStatMax">—</div></div>
+            </div>
+          </details>
+        {% endif %}
+
+        <details class="collapsible">
+          <summary>Уникальные значения по кардинальности (<=20: список, 20–100: топ-10 + «Другие», >100: только уникальность)</summary>
+          {% if results.string_top_values %}
+            {% for col_name, top_rows in results.string_top_values.items %}
+              <details class="collapsible">
+                <summary>
+                  {{ top_rows.column_ru|default:col_name }}
+                  {% if top_rows.mode == "high" %}
+                    — {{ top_rows.unique_count }} уник.
+                  {% endif %}
+                </summary>
+
+                {% if top_rows.mode == "high" %}
+                  <div class="hint" style="margin-top: 8px;">
+                    Уникальных значений: <span class="mono">{{ top_rows.unique_count }}</span>
+                    ({{ top_rows.cardinality_percent|floatformat:2 }}%)
+                  </div>
+                {% else %}
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Значение</th>
+                        <th>Частота</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for item in top_rows.values %}
+                        <tr>
+                          <td>
+                            {% if item.type == "other" %}
+                              Другие:
+                            {% else %}
+                              {{ item.value }}
+                            {% endif %}
+                          </td>
+                          <td>
+                            {% if item.type == "other" %}
+                              {{ item.other_unique_count }} уникальных значений
+                            {% else %}
+                              {{ item.count }}
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                {% endif %}
+              </details>
+            {% endfor %}
+          {% else %}
+            <div class="hint">Строковые колонки для топ-N не обнаружены.</div>
+          {% endif %}
+        </details>
       </section>
     {% endif %}
 
@@ -238,36 +280,97 @@
   <script>
     window.__EXPECTED_COLUMNS__ = ["ts", "category", "value"];
     window.__ALLOWED_CATEGORIES__ = ["stream", "batch", "api"];
-    window.__SPARK_TS__ = {% if results %}{{ results.timeseries|safe }}{% else %}[]{% endif %};
   </script>
+  {% if results %}
+    {{ results.timeseries|json_script:'spark-ts-json' }}
+  {% endif %}
   <script src="{% static 'analytics/upload.js' %}"></script>
   <script>
     (() => {
-      const data = window.__SPARK_TS__ || [];
+      const rawEl = document.getElementById("spark-ts-json");
+      const rawData = rawEl ? JSON.parse(rawEl.textContent || "[]") : [];
       const ctx = document.getElementById("timeChart");
-      if (!ctx || data.length === 0 || typeof Chart === "undefined") return;
+      const scaleSelect = document.getElementById("timeScaleSelect");
+      if (!ctx || rawData.length === 0 || typeof Chart === "undefined") return;
 
-      new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: data.map((p) => p.ts),
-          datasets: [{
-            label: "Среднее value по часу",
-            data: data.map((p) => p.value),
-            borderColor: "#f5f5f5",
-            backgroundColor: "rgba(245, 245, 245, 0.08)",
-            fill: true,
-            tension: 0.3,
-          }],
-        },
-        options: {
-          plugins: { legend: { labels: { color: "#e5e7eb" } } },
-          scales: {
-            x: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
-            y: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
+      const toDate = (s) => new Date(String(s).replace(" ", "T"));
+      const keyByScale = (d, scale) => {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const hh = String(d.getHours()).padStart(2, "0");
+        if (scale === "year") return `${yyyy}`;
+        if (scale === "month") return `${yyyy}-${mm}`;
+        if (scale === "day") return `${yyyy}-${mm}-${dd}`;
+        return `${yyyy}-${mm}-${dd} ${hh}:00`;
+      };
+
+      const aggregate = (scale) => {
+        const map = new Map();
+        rawData.forEach((p) => {
+          const d = toDate(p.ts);
+          if (Number.isNaN(d.getTime())) return;
+          const key = keyByScale(d, scale);
+          const v = Number(p.value);
+          if (!Number.isFinite(v)) return;
+          if (!map.has(key)) map.set(key, { sum: 0, count: 0 });
+          const cur = map.get(key);
+          cur.sum += v;
+          cur.count += 1;
+        });
+        return Array.from(map.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([k, o]) => ({ ts: k, value: o.sum / o.count }));
+      };
+
+      const fmt = (x) => (Number.isFinite(x) ? x.toFixed(2) : "—");
+
+      let chart = null;
+      const render = () => {
+        const scale = (scaleSelect && scaleSelect.value) || "day";
+        const data = aggregate(scale);
+        const values = data.map((p) => Number(p.value)).filter(Number.isFinite);
+        const sum = values.reduce((acc, v) => acc + v, 0);
+        const avg = values.length ? sum / values.length : NaN;
+        const min = values.length ? Math.min(...values) : NaN;
+        const max = values.length ? Math.max(...values) : NaN;
+
+        const set = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = val;
+        };
+        set("chartStatCount", String(values.length));
+        set("chartStatSum", fmt(sum));
+        set("chartStatAvg", fmt(avg));
+        set("chartStatMin", fmt(min));
+        set("chartStatMax", fmt(max));
+
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: data.map((p) => p.ts),
+            datasets: [{
+              label: `Среднее значение (${scale})`,
+              data: data.map((p) => p.value),
+              borderColor: "#f5f5f5",
+              backgroundColor: "rgba(245, 245, 245, 0.08)",
+              fill: true,
+              tension: 0.3,
+            }],
           },
-        },
-      });
+          options: {
+            plugins: { legend: { labels: { color: "#e5e7eb" } } },
+            scales: {
+              x: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
+              y: { ticks: { color: "#9ca3af" }, grid: { color: "rgba(255,255,255,0.05)" } },
+            },
+          },
+        });
+      };
+
+      if (scaleSelect) scaleSelect.addEventListener("change", render);
+      render();
     })();
   </script>
 </body>
