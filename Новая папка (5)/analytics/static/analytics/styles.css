@@ -392,5 +392,114 @@ input[type="file"]:focus {
 
 .time-controls {
   margin: 10px 0 14px; /* отступ между заголовком блока и селектором масштаба */
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.encoding-warning {
+  border-left: 3px solid #f59e0b;
+  padding-left: 12px;
+  margin-top: 8px;
+}
+
+.mapping-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.mapping-details {
+  margin-top: 12px;
+}
+
+.btn-wrap {
+  display: inline-block;
+  outline: none;
+}
+
+.chart-scroll-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  padding-bottom: 8px;
+}
+
+.chart-scroll-wrap canvas {
+  min-width: 480px;
+}
+
+.analysis-status {
+  color: #a7f3d0;
+}
+
+.analysis-progress {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0b0b0b;
+}
+
+.analysis-progress-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.analysis-progress-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #e5e7eb;
+}
+
+.analysis-progress-sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.analysis-progress-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: #1a1a1a;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.analysis-progress-bar {
+  position: absolute;
+  top: 0;
+  left: -36%;
+  height: 100%;
+  width: 36%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08),
+    #e5e7eb,
+    rgba(255, 255, 255, 0.1)
+  );
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+  animation: analysis-progress-slide 1.25s ease-in-out infinite alternate;
+}
+
+@keyframes analysis-progress-slide {
+  0% {
+    left: -36%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .analysis-progress-bar {
+    animation: none;
+    left: 10%;
+    width: 80%;
+    opacity: 0.9;
+  }
 }
 

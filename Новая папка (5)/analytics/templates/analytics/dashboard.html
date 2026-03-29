@@ -63,6 +63,12 @@
           <div class="label">Мин</div>
           <div class="value">{{ summary.min }}</div>
         </div>
+        {% if "sum" in summary %}
+        <div class="card">
+          <div class="label">Сумма</div>
+          <div class="value">{{ summary.sum }}</div>
+        </div>
+        {% endif %}
       </div>
     </section>
 

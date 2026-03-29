@@ -227,12 +227,18 @@ def upload_csv(request):
     results = None
     top_n = 5
     show_all_string_values = False
+    map_ts = ""
+    map_category = ""
+    map_value = ""
     if request.method == "POST":
         try:
             top_n = max(1, int(request.POST.get("top_n", "5")))
         except Exception:
             top_n = 5
         show_all_string_values = request.POST.get("show_all_string_values") == "on"
+        map_ts = (request.POST.get("map_ts") or "").strip().lower()
+        map_category = (request.POST.get("map_category") or "").strip().lower()
+        map_value = (request.POST.get("map_value") or "").strip().lower()
 
         uploaded = request.FILES.get("csv_file")
         if not uploaded:
@@ -259,10 +265,16 @@ def upload_csv(request):
                         SparkExecutionTimeoutError,
                     )
 
+                    column_mapping = {
+                        "ts": map_ts,
+                        "category": map_category,
+                        "value": map_value,
+                    }
                     results = analyze_csv_with_spark(
                         tmp_path,
                         top_n=top_n,
                         show_all_string_values=show_all_string_values,
+                        column_mapping=column_mapping,
                     )
                     request.session["latest_analysis"] = {
                         "summary": results.get("summary", {}),
@@ -300,6 +312,9 @@ def upload_csv(request):
             "results": results,
             "top_n": top_n,
             "show_all_string_values": show_all_string_values,
+            "map_ts": map_ts,
+            "map_category": map_category,
+            "map_value": map_value,
         },
     )
 
