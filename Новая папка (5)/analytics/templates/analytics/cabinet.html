@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Личный кабинет</title>
-  <link rel="stylesheet" href="{% static 'analytics/styles.css' %}?v=2">
+  <link rel="stylesheet" href="{% static 'analytics/styles.css' %}?v=7">
 </head>
 <body>
   <header class="topbar">
@@ -20,6 +20,11 @@
   </header>
 
   <main class="layout">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert {% if message.tags == 'warning' %}error{% elif message.tags == 'success' %}success{% endif %}" role="status">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
     <section class="panel">
       <h2>Данные профиля</h2>
       <div class="cards">
@@ -42,36 +47,41 @@
       </div>
     </section>
 
-    <section class="panel">
-      <h2>Активность за сутки</h2>
-      <div class="cards">
-        <div class="card">
-          <div class="label">Событий</div>
-          <div class="value">{{ activity.rows_24h }}</div>
-        </div>
-        <div class="card">
-          <div class="label">Среднее значение</div>
-          <div class="value">{{ activity.avg_24h }}</div>
-        </div>
-      </div>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Время</th>
-            <th>Категория</th>
-            <th>Значение</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in activity.last_values %}
+    <section class="panel" id="analysis-history">
+      <h2>История анализов CSV</h2>
+      <p class="hint subtle">
+        Каждая успешная загрузка на странице «Загрузка CSV» сохраняется здесь.
+        Можно открыть отчёт или скачать полный JSON с результатами Spark.
+      </p>
+      {% if analysis_history %}
+        <table class="data-table history-table">
+          <thead>
             <tr>
-              <td>{{ item.ts }}</td>
-              <td>{{ item.category }}</td>
-              <td>{{ item.value }}</td>
+              <th>Дата</th>
+              <th>Файл</th>
+              <th>Строк (сводка)</th>
+              <th>Колонок</th>
+              <th></th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for row in analysis_history %}
+              <tr id="analysis-run-{{ row.id }}">
+                <td>{{ row.created_at|date:"d.m.Y H:i" }}</td>
+                <td><span class="mono wrap-filename">{{ row.original_filename }}</span></td>
+                <td>{{ row.rows|default:"—" }}</td>
+                <td>{{ row.columns_count|default:"—" }}</td>
+                <td class="history-actions">
+                  <a class="link" href="{% url 'analytics:analysis_detail' row.id %}">Открыть</a>
+                  <a class="link" href="{% url 'analytics:analysis_export' row.id %}">Скачать JSON</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="hint">Пока нет сохранённых анализов. Загрузите CSV на странице <a class="link" href="{% url 'analytics:upload' %}">Загрузка CSV</a>.</div>
+      {% endif %}
     </section>
   </main>
 </body>

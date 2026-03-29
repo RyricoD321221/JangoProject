@@ -1,0 +1,274 @@
+{% load static %}
+<section class="panel analysis-results-panel">
+  <div class="panel-heading-row">
+    <h2 class="panel-heading-title">Результаты анализа (Apache Spark)</h2>
+    {% if saved_analysis_id %}
+      <div class="result-actions">
+        <a
+          class="button button-secondary"
+          href="{% url 'analytics:analysis_export' saved_analysis_id %}"
+        >Скачать JSON</a>
+        {% if analysis_detail_mode %}
+          <a class="link" href="{% url 'analytics:cabinet' %}#analysis-run-{{ saved_analysis_id }}">В историю</a>
+        {% else %}
+          <a class="link" href="{% url 'analytics:analysis_detail' saved_analysis_id %}">Сохранённый отчёт</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  {% if record %}
+    <p class="hint subtle meta-run">
+      <span class="mono">{{ record.created_at|date:"d.m.Y H:i" }}</span>
+      · файл: <span class="mono">{{ record.original_filename }}</span>
+      · Top-N: {{ record.top_n }}
+    </p>
+  {% endif %}
+
+  {% if results.column_mapping_resolved.ts or results.column_mapping_resolved.value %}
+    <div class="hint subtle">
+      Используются колонки:
+      дата/время — <span class="mono">{{ results.column_mapping_resolved.ts|default:"—" }}</span>,
+      значение — <span class="mono">{{ results.column_mapping_resolved.value|default:"—" }}</span>
+      {% if results.column_mapping_resolved.category %},
+        категория — <span class="mono">{{ results.column_mapping_resolved.category }}</span>
+      {% endif %}.
+    </div>
+  {% endif %}
+
+  {% if results.warnings %}
+    {% for warn in results.warnings %}
+      <div class="alert error">{{ warn }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <details class="collapsible" open>
+    <summary>Структура данных (схема)</summary>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Колонка</th>
+          <th>Тип колонки</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for col in results.schema %}
+          <tr>
+            <td>{{ col.display_name|default:col.name }}</td>
+            <td>{{ col.type }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+
+  <details class="collapsible" open>
+    <summary>Общие показатели</summary>
+    <div class="cards">
+      <div class="card">
+        <div class="label">Строк (в чистых данных / сводке)</div>
+        <div class="value">{{ results.summary.rows }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Строк в файле (всего)</div>
+        <div class="value">{{ results.total_rows_file }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Колонок</div>
+        <div class="value">{{ results.columns_count }}</div>
+      </div>
+      {% if "sum" in results.summary %}
+        <div class="card">
+          <div class="label">Сумма (выбранная метрика)</div>
+          <div class="value">{{ results.summary.sum }}</div>
+        </div>
+      {% endif %}
+      {% if results.summary.avg is not None %}
+        <div class="card">
+          <div class="label">Среднее</div>
+          <div class="value">{{ results.summary.avg }}</div>
+        </div>
+        <div class="card">
+          <div class="label">Макс</div>
+          <div class="value">{{ results.summary.max }}</div>
+        </div>
+        <div class="card">
+          <div class="label">Мин</div>
+          <div class="value">{{ results.summary.min }}</div>
+        </div>
+      {% endif %}
+    </div>
+  </details>
+
+  {% if results.by_category %}
+    <details class="collapsible">
+      <summary>Категориальные данные</summary>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Категория</th>
+            <th>Строк</th>
+            <th>Среднее (метрика)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in results.by_category %}
+            <tr>
+              <td>{{ row.category }}</td>
+              <td>{{ row.rows }}</td>
+              <td>{{ row.avg_value|floatformat:2 }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endif %}
+
+  {% if results.numeric_stats %}
+    <details class="collapsible">
+      <summary>Числовые данные</summary>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Колонка</th>
+            <th>Кол-во</th>
+            <th>Сумма</th>
+            <th>Среднее</th>
+            <th>Медиана</th>
+            <th>Мин</th>
+            <th>Макс</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in results.numeric_stats %}
+            <tr>
+              <td>{{ row.column_ru|default:row.column }}</td>
+              <td>{{ row.count }}</td>
+              <td>{{ row.sum|floatformat:2 }}</td>
+              <td>{{ row.avg|floatformat:2 }}</td>
+              <td>{{ row.median|floatformat:row.median_decimals }}</td>
+              <td>{{ row.min|floatformat:row.min_decimals }}</td>
+              <td>{{ row.max|floatformat:row.max_decimals }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endif %}
+
+  {% if results.column_mapping_resolved.ts and results.column_mapping_resolved.value %}
+    {% if results.timeseries_by_granularity %}
+      <details class="collapsible" open>
+        <summary>Данные по датам (график)</summary>
+        <div class="hint subtle">
+          Агрегации по часу, дню, месяцу и году считаются на сервере по исходным строкам.
+          При большом числе точек режимы «Час» и «День» отключаются (более 50 меток на оси).
+        </div>
+        <div class="time-controls">
+          <label class="field-label">
+            Масштаб
+            <select id="timeScaleSelect" class="topn-input">
+              <option value="hour">Час</option>
+              <option value="day" selected>День</option>
+              <option value="month">Месяц</option>
+              <option value="year">Год</option>
+            </select>
+          </label>
+          <label class="field-label">
+            Агрегация
+            <select id="timeAggSelect" class="topn-input">
+              <option value="avg" selected>Среднее</option>
+              <option value="sum">Сумма</option>
+              <option value="count">Количество записей</option>
+            </select>
+          </label>
+        </div>
+        <div class="hint">
+          На графике: для «Среднее» показывается среднее значение метрики внутри выбранного интервала
+          (по всем строкам, попавшим в интервал). «Сумма» — сумма метрик; «Количество записей» — число строк.
+        </div>
+        <div class="chart-scroll-wrap">
+          <canvas id="timeChart" height="120"></canvas>
+        </div>
+        <div class="cards">
+          <div class="card"><div class="label">Точек на графике</div><div class="value" id="chartStatCount">—</div></div>
+          <div class="card"><div class="label">Сумма (по оси Y)</div><div class="value" id="chartStatSum">—</div></div>
+          <div class="card"><div class="label">Среднее (по оси Y)</div><div class="value" id="chartStatAvg">—</div></div>
+          <div class="card"><div class="label">Мин</div><div class="value" id="chartStatMin">—</div></div>
+          <div class="card"><div class="label">Макс</div><div class="value" id="chartStatMax">—</div></div>
+        </div>
+      </details>
+    {% endif %}
+  {% endif %}
+
+  <details class="collapsible">
+    <summary>Уникальные значения (только текстовые колонки; доля от всех строк файла)</summary>
+    <p class="hint subtle">
+      Числовые поля и даты/время анализируются в блоках «Числовые данные» и «Данные по датам»;
+      здесь — текст (кардинальность и частоты).
+    </p>
+    {% if results.string_top_values %}
+      {% for col_name, top_rows in results.string_top_values.items %}
+        <details class="collapsible">
+          <summary>
+            {{ top_rows.column_ru|default:col_name }}
+            {% if top_rows.mode == "high" %}
+              — {{ top_rows.unique_count }} уник.
+            {% endif %}
+          </summary>
+
+          {% if top_rows.mode == "high" %}
+            <div class="hint" style="margin-top: 8px;">
+              Уникальных значений: <span class="mono">{{ top_rows.unique_count }}</span>
+              (доля уникальных среди непустых: {{ top_rows.cardinality_percent|floatformat:2 }}%)
+            </div>
+          {% else %}
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Значение</th>
+                  <th>Частота</th>
+                  <th>% от всех строк файла</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in top_rows.values %}
+                  <tr>
+                    <td>
+                      {% if item.type == "other" %}
+                        Другие
+                      {% else %}
+                        {{ item.value }}
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if item.type == "other" %}
+                        {{ item.other_unique_count }} уникальных значений (не показаны по отдельности)
+                      {% else %}
+                        {{ item.count }}
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if item.type == "other" %}
+                        —
+                      {% else %}
+                        {{ item.pct_of_all_rows|default_if_none:0|floatformat:2 }}%
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endif %}
+        </details>
+      {% endfor %}
+    {% else %}
+      <div class="hint">Подходящих текстовых колонок для списка уникальных значений не найдено.</div>
+    {% endif %}
+  </details>
+</section>
+
+{% if results.timeseries_by_granularity %}
+  {{ results.timeseries_by_granularity|json_script:"spark-ts-gran-json" }}
+{% endif %}
+<script src="{% static 'analytics/timeseries_chart.js' %}?v=1"></script>

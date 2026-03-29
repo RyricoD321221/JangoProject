@@ -1,0 +1,27 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Сохранённый анализ · {{ record.original_filename }}</title>
+  <link rel="stylesheet" href="{% static 'analytics/styles.css' %}?v=7">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Jango · Анализ CSV</div>
+    <div class="status">
+      <span>{{ user.username }}</span> ·
+      <a class="link" href="{% url 'analytics:cabinet' %}#analysis-run-{{ record.pk }}">Личный кабинет</a> ·
+      <a class="link" href="{% url 'analytics:upload' %}">Загрузка CSV</a> ·
+      <a class="link" href="{% url 'analytics:dashboard' %}">Дашборд</a> ·
+      <a class="link" href="{% url 'logout' %}">Выйти</a>
+    </div>
+  </header>
+
+  <main class="layout">
+    {% include "analytics/includes/analysis_results.html" with results=results saved_analysis_id=saved_analysis_id analysis_detail_mode=True record=record %}
+  </main>
+</body>
+</html>

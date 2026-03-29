@@ -1,16 +1,21 @@
+import json
 import random
 import io
 import os
+import re
 import tempfile
 from datetime import datetime, timedelta
 
 import pandas as pd
+from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import AuthenticationForm
-from django.shortcuts import render, redirect
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from .forms import RegistrationForm
+from .models import CsvAnalysisRun
 
 NEWS_ITEMS = [
     {
@@ -62,13 +67,16 @@ def dashboard(request):
         summary = latest_analysis.get("summary", {})
         by_category = latest_analysis.get("by_category", [])
         timeseries = latest_analysis.get("timeseries", [])
+        summary_ctx = {
+            "rows": summary.get("rows", 0),
+            "avg": summary.get("avg", "—"),
+            "max": summary.get("max", "—"),
+            "min": summary.get("min", "—"),
+        }
+        if "sum" in summary:
+            summary_ctx["sum"] = summary.get("sum")
         context = {
-            "summary": {
-                "rows": summary.get("rows", 0),
-                "avg": summary.get("avg", "—"),
-                "max": summary.get("max", "—"),
-                "min": summary.get("min", "—"),
-            },
+            "summary": summary_ctx,
             "by_category": by_category,
             "timeseries": timeseries,
             "dashboard_mode": "real",
@@ -125,9 +133,6 @@ def news(request):
 
 @login_required
 def cabinet(request):
-    df = _generate_sample_dataframe(request.user, rows=120)
-    recent_stats = df.tail(10)
-
     account_info = {
         "username": request.user.username,
         "email": getattr(request.user, "email", "") or "не указан",
@@ -137,21 +142,63 @@ def cabinet(request):
         "last_login": getattr(request.user, "last_login", None),
     }
 
-    activity = {
-        "rows_24h": int(df.shape[0]),
-        "avg_24h": round(df["value"].mean(), 2),
-        "last_values": [
+    runs = CsvAnalysisRun.objects.filter(user=request.user).order_by("-created_at")[:100]
+    analysis_history = []
+    for run in runs:
+        payload = run.results_payload or {}
+        summ = payload.get("summary") or {}
+        analysis_history.append(
             {
-                "ts": row.ts.strftime("%H:%M"),
-                "value": round(row.value, 2),
-                "category": row.category,
+                "id": run.pk,
+                "created_at": run.created_at,
+                "original_filename": run.original_filename,
+                "rows": summ.get("rows"),
+                "columns_count": payload.get("columns_count"),
             }
-            for row in recent_stats.itertuples()
-        ],
-    }
+        )
 
-    context = {"account": account_info, "activity": activity}
+    context = {"account": account_info, "analysis_history": analysis_history}
     return render(request, "analytics/cabinet.html", context)
+
+
+@login_required
+def analysis_detail(request, pk):
+    record = get_object_or_404(CsvAnalysisRun, pk=pk, user=request.user)
+    return render(
+        request,
+        "analytics/analysis_detail.html",
+        {
+            "record": record,
+            "results": record.results_payload,
+            "saved_analysis_id": record.pk,
+            "analysis_detail_mode": True,
+        },
+    )
+
+
+@login_required
+def analysis_export(request, pk):
+    record = get_object_or_404(CsvAnalysisRun, pk=pk, user=request.user)
+    export_doc = {
+        "exported_at": timezone.now().isoformat(),
+        "analysis_id": record.pk,
+        "original_filename": record.original_filename,
+        "created_at": record.created_at.isoformat(),
+        "options": {
+            "top_n": record.top_n,
+            "show_all_string_values": record.show_all_string_values,
+            "column_mapping": record.column_mapping,
+        },
+        "results": record.results_payload,
+    }
+    raw = json.dumps(export_doc, ensure_ascii=False, indent=2)
+    response = HttpResponse(raw, content_type="application/json; charset=utf-8")
+    stub = re.sub(r"[^\w\-.]+", "_", record.original_filename, flags=re.UNICODE).strip(
+        "_"
+    )[:80] or "data"
+    filename = f"analysis_{record.pk}_{record.created_at:%Y%m%d_%H%M}_{stub}.json"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 def register(request):
@@ -225,6 +272,7 @@ def upload_csv(request):
     error = None
     success = None
     results = None
+    saved_analysis_id = None
     top_n = 5
     show_all_string_values = False
     map_ts = ""
@@ -286,6 +334,23 @@ def upload_csv(request):
                         "show_all_string_values": show_all_string_values,
                         "columns_count": results.get("columns_count"),
                     }
+                    try:
+                        run = CsvAnalysisRun.objects.create(
+                            user=request.user,
+                            original_filename=(
+                                (getattr(uploaded, "name", None) or "upload.csv")
+                            )[:255],
+                            top_n=top_n,
+                            show_all_string_values=show_all_string_values,
+                            column_mapping=column_mapping,
+                            results_payload=results,
+                        )
+                        saved_analysis_id = run.pk
+                    except Exception as exc:
+                        messages.warning(
+                            request,
+                            "Анализ выполнен, но сохранить историю в базе не удалось: %s" % exc,
+                        )
                     success = "CSV прошёл проверку и успешно обработан Apache Spark."
                 except SparkInvalidCsvError as exc:
                     error = f"Некорректные данные CSV: {exc}"
@@ -310,6 +375,7 @@ def upload_csv(request):
             "error": error,
             "success": success,
             "results": results,
+            "saved_analysis_id": saved_analysis_id,
             "top_n": top_n,
             "show_all_string_values": show_all_string_values,
             "map_ts": map_ts,

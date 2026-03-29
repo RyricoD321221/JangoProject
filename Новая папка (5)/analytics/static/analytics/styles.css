@@ -503,3 +503,65 @@ input[type="file"]:focus {
   }
 }
 
+.panel-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.panel-heading-title {
+  margin: 0;
+}
+
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0a0a0a;
+  background: #e5e7eb;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.button-secondary:hover {
+  background: #f9fafb;
+  color: #0a0a0a;
+  text-decoration: none;
+}
+
+.history-table .history-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.history-table .history-actions .link {
+  margin-left: 10px;
+}
+
+.wrap-filename {
+  word-break: break-all;
+  max-width: 280px;
+  display: inline-block;
+}
+
+.meta-run {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
