@@ -8,6 +8,10 @@
           class="button button-secondary"
           href="{% url 'analytics:analysis_export' saved_analysis_id %}"
         >Скачать JSON</a>
+        <a
+          class="button button-secondary"
+          href="{% url 'analytics:analysis_export' saved_analysis_id %}?format=txt"
+        >Скачать TXT</a>
         {% if analysis_detail_mode %}
           <a class="link" href="{% url 'analytics:cabinet' %}#analysis-run-{{ saved_analysis_id }}">В историю</a>
         {% else %}
@@ -153,6 +157,70 @@
           {% endfor %}
         </tbody>
       </table>
+    </details>
+  {% endif %}
+
+  {% if results.numeric_top_values %}
+    <details class="collapsible">
+      <summary>Уникальные значения (числовые колонки; доля от всех строк файла)</summary>
+      <p class="hint subtle">
+        Показываются частоты значений для числовых колонок. Если уникальных значений слишком много,
+        выводится только сводка без списка.
+      </p>
+      {% for col_name, top_rows in results.numeric_top_values.items %}
+        <details class="collapsible">
+          <summary>
+            {{ top_rows.column_ru|default:col_name }}
+            {% if top_rows.mode == "high" %}
+              — {{ top_rows.unique_count }} уник.
+            {% endif %}
+          </summary>
+
+          {% if top_rows.mode == "high" %}
+            <div class="hint" style="margin-top: 8px;">
+              Уникальных значений: <span class="mono">{{ top_rows.unique_count }}</span>
+              (доля уникальных среди непустых: {{ top_rows.cardinality_percent|floatformat:2 }}%)
+            </div>
+          {% else %}
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Значение</th>
+                  <th>Частота</th>
+                  <th>% от всех строк файла</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in top_rows.values %}
+                  <tr>
+                    <td>
+                      {% if item.type == "other" %}
+                        Другие
+                      {% else %}
+                        {{ item.value|floatformat:2 }}
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if item.type == "other" %}
+                        {{ item.other_unique_count }} уникальных значений (не показаны по отдельности)
+                      {% else %}
+                        {{ item.count }}
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if item.type == "other" %}
+                        —
+                      {% else %}
+                        {{ item.pct_of_all_rows|default_if_none:0|floatformat:2 }}%
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endif %}
+        </details>
+      {% endfor %}
     </details>
   {% endif %}
 

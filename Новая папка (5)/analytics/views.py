@@ -5,6 +5,7 @@ import os
 import re
 import tempfile
 from datetime import datetime, timedelta
+from typing import Any, Dict, List
 
 import pandas as pd
 from django.contrib import messages
@@ -191,14 +192,181 @@ def analysis_export(request, pk):
         },
         "results": record.results_payload,
     }
-    raw = json.dumps(export_doc, ensure_ascii=False, indent=2)
-    response = HttpResponse(raw, content_type="application/json; charset=utf-8")
+    fmt = (request.GET.get("format") or "json").strip().lower()
+    if fmt not in ("json", "txt"):
+        fmt = "json"
+
+    if fmt == "txt":
+        raw = _render_analysis_txt(export_doc)
+        response = HttpResponse(raw, content_type="text/plain; charset=utf-8")
+    else:
+        raw = json.dumps(export_doc, ensure_ascii=False, indent=2)
+        response = HttpResponse(raw, content_type="application/json; charset=utf-8")
+
     stub = re.sub(r"[^\w\-.]+", "_", record.original_filename, flags=re.UNICODE).strip(
         "_"
     )[:80] or "data"
-    filename = f"analysis_{record.pk}_{record.created_at:%Y%m%d_%H%M}_{stub}.json"
+    ext = "txt" if fmt == "txt" else "json"
+    filename = f"analysis_{record.pk}_{record.created_at:%Y%m%d_%H%M}_{stub}.{ext}"
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+def _render_analysis_txt(export_doc: Dict[str, Any]) -> str:
+    """Читаемый текстовый экспорт (без требований к обратному парсингу)."""
+
+    def line() -> str:
+        return "-" * 72
+
+    def fmt_dt(s: Any) -> str:
+        return str(s) if s is not None else "—"
+
+    def fmt_val(v: Any) -> str:
+        if v is None:
+            return "—"
+        if isinstance(v, bool):
+            return "да" if v else "нет"
+        if isinstance(v, (int,)):
+            return str(v)
+        if isinstance(v, float):
+            return f"{v:.4f}".rstrip("0").rstrip(".")
+        return str(v)
+
+    def section(title: str, out: List[str]) -> None:
+        out.append(title)
+        out.append(line())
+
+    out: List[str] = []
+    results = export_doc.get("results") or {}
+    options = export_doc.get("options") or {}
+
+    section("ОТЧЁТ АНАЛИЗА CSV (Apache Spark)", out)
+    out.append(f"Дата экспорта: {fmt_dt(export_doc.get('exported_at'))}")
+    out.append(f"ID анализа: {fmt_val(export_doc.get('analysis_id'))}")
+    out.append(f"Файл: {fmt_val(export_doc.get('original_filename'))}")
+    out.append(f"Дата запуска: {fmt_dt(export_doc.get('created_at'))}")
+    out.append("")
+
+    section("ПАРАМЕТРЫ ЗАПУСКА", out)
+    out.append(f"Top-N: {fmt_val(options.get('top_n'))}")
+    out.append(f"Показывать все строковые значения: {fmt_val(options.get('show_all_string_values'))}")
+    mapping = (results.get("column_mapping_resolved") or options.get("column_mapping") or {}) or {}
+    out.append(
+        "Колонки (ts/category/value): "
+        f"{fmt_val(mapping.get('ts'))} / {fmt_val(mapping.get('category'))} / {fmt_val(mapping.get('value'))}"
+    )
+    out.append("")
+
+    warnings = results.get("warnings") or []
+    if warnings:
+        section("ПРЕДУПРЕЖДЕНИЯ", out)
+        for w in warnings:
+            out.append(f"- {w}")
+        out.append("")
+
+    section("ОБЩИЕ ПОКАЗАТЕЛИ", out)
+    summary = results.get("summary") or {}
+    out.append(f"Строк (в сводке): {fmt_val(summary.get('rows'))}")
+    out.append(f"Строк в файле (всего): {fmt_val(results.get('total_rows_file'))}")
+    out.append(f"Колонок: {fmt_val(results.get('columns_count'))}")
+    if "sum" in summary:
+        out.append(f"Сумма (по выбранной метрике): {fmt_val(summary.get('sum'))}")
+    if summary.get("avg") is not None:
+        out.append(f"Среднее: {fmt_val(summary.get('avg'))}")
+        out.append(f"Мин: {fmt_val(summary.get('min'))}")
+        out.append(f"Макс: {fmt_val(summary.get('max'))}")
+    out.append("")
+
+    schema = results.get("schema") or []
+    if schema:
+        section("СХЕМА (КОЛОНКА — ТИП)", out)
+        for col in schema:
+            name = col.get("display_name") or col.get("name") or "—"
+            typ = col.get("type") or "—"
+            out.append(f"- {name}: {typ}")
+        out.append("")
+
+    numeric_stats = results.get("numeric_stats") or []
+    if numeric_stats:
+        section("ЧИСЛОВЫЕ ДАННЫЕ (СВОДКА)", out)
+        for r in numeric_stats:
+            col = r.get("column_ru") or r.get("column") or "—"
+            out.append(
+                f"* {col}: count={fmt_val(r.get('count'))}, sum={fmt_val(r.get('sum'))}, "
+                f"avg={fmt_val(r.get('avg'))}, median={fmt_val(r.get('median'))}, "
+                f"min={fmt_val(r.get('min'))}, max={fmt_val(r.get('max'))}"
+            )
+        out.append("")
+
+    # Частоты по категориям
+    by_category = results.get("by_category") or []
+    if by_category:
+        section("КАТЕГОРИАЛЬНЫЕ ДАННЫЕ (TOP)", out)
+        for r in by_category[:50]:
+            out.append(
+                f"- {fmt_val(r.get('category'))}: rows={fmt_val(r.get('rows'))}, "
+                f"avg_value={fmt_val(r.get('avg_value'))}"
+            )
+        if len(by_category) > 50:
+            out.append(f"... ещё {len(by_category) - 50} строк(и) не показаны")
+        out.append("")
+
+    # Временные ряды (коротко)
+    ts_by = results.get("timeseries_by_granularity") or {}
+    if ts_by:
+        section("ДАННЫЕ ПО ДАТАМ (КРАТКО)", out)
+        for unit in ("day", "month", "year", "hour"):
+            rows = ts_by.get(unit) or []
+            if not rows:
+                continue
+            out.append(f"[{unit}] точек: {len(rows)}")
+            for r in rows[:50]:
+                out.append(
+                    f"  - {fmt_val(r.get('ts'))}: rows={fmt_val(r.get('rows'))}, "
+                    f"sum={fmt_val(r.get('sum_value'))}, avg={fmt_val(r.get('value'))}"
+                )
+            if len(rows) > 50:
+                out.append(f"  ... ещё {len(rows) - 50} точек не показаны")
+        out.append("")
+
+    # Топы значений по тексту/числам (как в UI)
+    string_top = results.get("string_top_values") or {}
+    if string_top:
+        section("УНИКАЛЬНЫЕ ЗНАЧЕНИЯ (ТЕКСТОВЫЕ КОЛОНКИ)", out)
+        for col_name, block in list(string_top.items())[:50]:
+            col_ru = block.get("column_ru") or col_name
+            mode = block.get("mode")
+            out.append(f"* {col_ru} (mode={mode}, unique={fmt_val(block.get('unique_count'))})")
+            if mode in ("small", "medium"):
+                for item in (block.get("values") or [])[:50]:
+                    if item.get("type") == "other":
+                        out.append(f"  - Другие: {fmt_val(item.get('other_unique_count'))} уникальных")
+                    else:
+                        out.append(
+                            f"  - {fmt_val(item.get('value'))}: {fmt_val(item.get('count'))} "
+                            f"({fmt_val(item.get('pct_of_all_rows'))}%)"
+                        )
+        out.append("")
+
+    numeric_top = results.get("numeric_top_values") or {}
+    if numeric_top:
+        section("УНИКАЛЬНЫЕ ЗНАЧЕНИЯ (ЧИСЛОВЫЕ КОЛОНКИ)", out)
+        for col_name, block in list(numeric_top.items())[:50]:
+            col_ru = block.get("column_ru") or col_name
+            mode = block.get("mode")
+            out.append(f"* {col_ru} (mode={mode}, unique={fmt_val(block.get('unique_count'))})")
+            if mode in ("small", "medium"):
+                for item in (block.get("values") or [])[:50]:
+                    if item.get("type") == "other":
+                        out.append(f"  - Другие: {fmt_val(item.get('other_unique_count'))} уникальных")
+                    else:
+                        out.append(
+                            f"  - {fmt_val(item.get('value'))}: {fmt_val(item.get('count'))} "
+                            f"({fmt_val(item.get('pct_of_all_rows'))}%)"
+                        )
+        out.append("")
+
+    return "\n".join(out).rstrip() + "\n"
 
 
 def register(request):

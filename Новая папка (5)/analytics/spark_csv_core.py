@@ -154,13 +154,19 @@ def _infer_column_kinds(df) -> Dict[str, Dict[str, Any]]:
     for c in df.columns:
         num_col = f"__infer_{c}__num"
         tmp = df.withColumn(num_col, F.col(c).cast(DoubleType()))
+        # Распознаём даты в типичных форматах CSV: ISO и "ДД.ММ.ГГГГ[ ЧЧ:ММ[:СС]]".
+        c_s = F.trim(F.col(c).cast(StringType()))
+        ts_try = F.coalesce(
+            F.to_timestamp(c_s),
+            F.to_timestamp(c_s, "dd.MM.yyyy HH:mm:ss"),
+            F.to_timestamp(c_s, "dd.MM.yyyy HH:mm"),
+            F.to_timestamp(c_s, "dd.MM.yyyy"),
+        )
         row = tmp.agg(
             F.sum(
                 F.when(F.col(c).isNotNull() & (F.trim(F.col(c)) != ""), 1).otherwise(0)
             ).alias("nn"),
-            F.sum(F.when(F.to_timestamp(F.col(c)).isNotNull(), 1).otherwise(0)).alias(
-                "nts"
-            ),
+            F.sum(F.when(ts_try.isNotNull(), 1).otherwise(0)).alias("nts"),
             F.sum(F.when(F.col(num_col).isNotNull(), 1).otherwise(0)).alias("nnum"),
             F.sum(
                 F.when(
@@ -232,6 +238,98 @@ def _numeric_block(df, c: str, column_ru: str) -> Optional[Dict[str, Any]]:
         "max": int(stat_row["max_int"]) if integer_like else float(stat_row["max_d"]),
         "min_decimals": 0 if integer_like else 2,
         "max_decimals": 0 if integer_like else 2,
+    }
+
+
+def _numeric_top_values_for_col(
+    df, col_name: str, column_ru: str, top_n: int, total_rows: int
+) -> Optional[Dict[str, Any]]:
+    """
+    Частоты значений для числовых колонок.
+
+    Для float-колонок кардинальность часто очень высокая, поэтому:
+    - small: показываем все значения (если уникальных мало)
+    - medium: показываем top-N и добавляем "Другие"
+    - high: только сводка по числу уникальных (без списка значений)
+    """
+    SMALL_UNIQUE_LIMIT = 20
+    MEDIUM_UNIQUE_LIMIT = 200
+    TOP_VALUES_MEDIUM = max(10, int(top_n) if top_n else 10)
+    denom_all = max(int(total_rows), 1)
+
+    # Приводим к числу устойчиво: убираем пробелы/nbsp и меняем "," на "."
+    raw_s = F.trim(F.col(col_name).cast(StringType()))
+    norm = F.regexp_replace(raw_s, r"[\u00A0\s]", "")
+    norm = F.regexp_replace(norm, ",", ".")
+    num = norm.cast(DoubleType())
+
+    base = df.withColumn("__num_tv", num).filter(F.col("__num_tv").isNotNull())
+    agg_row = base.agg(
+        F.count(F.lit(1)).alias("rows"),
+        F.countDistinct(F.col("__num_tv")).alias("unique_count"),
+    ).collect()[0]
+    unique_count = int(agg_row["unique_count"] or 0)
+    nonempty_rows = int(agg_row["rows"] or 0)
+    if unique_count <= 0 or nonempty_rows <= 0:
+        return None
+
+    cardinality_percent = (unique_count / nonempty_rows * 100.0) if nonempty_rows else 0.0
+
+    def add_pct(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for r in records:
+            if r.get("type") == "value" and "count" in r:
+                cnt = int(r["count"])
+                r["pct_of_all_rows"] = round(cnt / denom_all * 100.0, 2)
+        return records
+
+    if unique_count <= SMALL_UNIQUE_LIMIT:
+        values_df = (
+            base.groupBy(F.col("__num_tv").alias("value"))
+            .agg(F.count("*").alias("count"))
+            .orderBy(F.col("count").desc(), F.col("value").asc())
+        )
+        values = add_pct(
+            [
+                {"type": "value", "value": float(r["value"]), "count": int(r["count"])}
+                for r in values_df.collect()
+            ]
+        )
+        return {
+            "mode": "small",
+            "column_ru": column_ru,
+            "unique_count": unique_count,
+            "cardinality_percent": float(cardinality_percent),
+            "values": values,
+        }
+
+    if unique_count <= MEDIUM_UNIQUE_LIMIT:
+        values_df = (
+            base.groupBy(F.col("__num_tv").alias("value"))
+            .agg(F.count("*").alias("count"))
+            .orderBy(F.col("count").desc(), F.col("value").asc())
+            .limit(TOP_VALUES_MEDIUM)
+        )
+        top_vals = [
+            {"type": "value", "value": float(r["value"]), "count": int(r["count"])}
+            for r in values_df.collect()
+        ]
+        top_vals = add_pct(top_vals)
+        other_unique = max(0, unique_count - len(top_vals))
+        top_vals.append({"type": "other", "value": "Другие", "other_unique_count": other_unique})
+        return {
+            "mode": "medium",
+            "column_ru": column_ru,
+            "unique_count": unique_count,
+            "cardinality_percent": float(cardinality_percent),
+            "values": top_vals,
+        }
+
+    return {
+        "mode": "high",
+        "column_ru": column_ru,
+        "unique_count": unique_count,
+        "cardinality_percent": float(cardinality_percent),
+        "values": [],
     }
 
 
@@ -363,12 +461,18 @@ def run_csv_analysis(
     base_ok = bool(ts_col and val_col and ts_col in df.columns and val_col in df.columns)
 
     numeric_stats: List[Dict[str, Any]] = []
+    numeric_top_values: Dict[str, Any] = {}
     for c in df.columns:
         if kinds[c]["kind"] != "numeric":
             continue
         block = _numeric_block(df, c, to_ru_column_name(c))
         if block:
             numeric_stats.append(block)
+            tv = _numeric_top_values_for_col(
+                df, c, to_ru_column_name(c), top_n=top_n, total_rows=total_rows_file
+            )
+            if tv:
+                numeric_top_values[c] = tv
 
     schema_rows = [
         {
@@ -412,9 +516,27 @@ def run_csv_analysis(
         if cat_col and cat_col in df.columns:
             sel_cols.append(F.col(cat_col).alias("__raw_cat"))
         df_b = df.select(*sel_cols)
-        df_b = df_b.withColumn("__ts", F.to_timestamp(F.col("__raw_ts"))).withColumn(
-            "__val", F.col("__raw_val").cast(DoubleType())
+
+        # Устойчивый парсинг дат и чисел для реальных CSV.
+        # - даты часто приходят как "ДД.ММ.ГГГГ" или "ДД.ММ.ГГГГ ЧЧ:ММ[:СС]"
+        # - числа часто приходят со знаком "," в качестве десятичного разделителя
+        raw_ts_s = F.trim(F.col("__raw_ts").cast(StringType()))
+        raw_val_s = F.trim(F.col("__raw_val").cast(StringType()))
+
+        # Несколько попыток распознать timestamp: ISO, "dd.MM.yyyy", "dd.MM.yyyy HH:mm", "dd.MM.yyyy HH:mm:ss".
+        ts_parsed = F.coalesce(
+            F.to_timestamp(raw_ts_s),  # если Spark сам угадает (ISO и т.п.)
+            F.to_timestamp(raw_ts_s, "dd.MM.yyyy HH:mm:ss"),
+            F.to_timestamp(raw_ts_s, "dd.MM.yyyy HH:mm"),
+            F.to_timestamp(raw_ts_s, "dd.MM.yyyy"),
         )
+
+        # Число: заменяем запятую на точку и убираем пробелы/неразрывные пробелы как разделители тысяч.
+        val_norm = F.regexp_replace(raw_val_s, r"[\u00A0\s]", "")
+        val_norm = F.regexp_replace(val_norm, ",", ".")
+        val_parsed = val_norm.cast(DoubleType())
+
+        df_b = df_b.withColumn("__ts", ts_parsed).withColumn("__val", val_parsed)
 
         total_before = df_b.count()
         trim_ts = F.trim(F.col("__raw_ts").cast(StringType()))
@@ -440,83 +562,109 @@ def run_csv_analysis(
 
         df_clean = df_b.filter(F.col("__ts").isNotNull() & F.col("__val").isNotNull())
         if df_clean.rdd.isEmpty():
-            raise ValueError(
-                "После разбора не осталось строк: проверьте формат даты и числа в выбранных колонках."
+            # Не падаем всем анализом: возвращаем базовые блоки и подробное предупреждение.
+            warnings.append(
+                "После разбора по выбранным колонкам «Дата/время» и «Значение» не осталось строк. "
+                "Проверь, что «Дата/время» имеет вид, например, 21.11.2022 или 21.11.2022 14:30, "
+                "а «Значение» — число (допускается 123.45 или 123,45). "
+                "Расширенный анализ по времени пропущен."
             )
+            timeseries_by_granularity = {}
+            by_category = []
+            summary_row = {
+                "rows": 0,
+                "avg": None,
+                "max": None,
+                "min": None,
+                "sum": None,
+            }
+            # дальше код ниже использует summary_row/by_category/timeseries_by_granularity
+            # поэтому просто пропускаем блок расчётов.
+            base_ok = False
+        if base_ok:
+            summary_agg = df_clean.agg(
+                F.count(F.lit(1)).alias("rows"),
+                F.avg("__val").alias("avg"),
+                F.max("__val").alias("max"),
+                F.min("__val").alias("min"),
+                F.sum("__val").alias("sum_v"),
+            ).collect()[0]
 
-        summary_agg = df_clean.agg(
-            F.count(F.lit(1)).alias("rows"),
-            F.avg("__val").alias("avg"),
-            F.max("__val").alias("max"),
-            F.min("__val").alias("min"),
-            F.sum("__val").alias("sum_v"),
-        ).collect()[0]
+            summary_row = {
+                "rows": int(summary_agg["rows"]),
+                "avg": (
+                    round(float(summary_agg["avg"]), 2)
+                    if summary_agg["avg"] is not None
+                    else None
+                ),
+                "max": (
+                    round(float(summary_agg["max"]), 2)
+                    if summary_agg["max"] is not None
+                    else None
+                ),
+                "min": (
+                    round(float(summary_agg["min"]), 2)
+                    if summary_agg["min"] is not None
+                    else None
+                ),
+                "sum": (
+                    round(float(summary_agg["sum_v"]), 2)
+                    if summary_agg["sum_v"] is not None
+                    else None
+                ),
+            }
 
-        summary_row = {
-            "rows": int(summary_agg["rows"]),
-            "avg": (
-                round(float(summary_agg["avg"]), 2) if summary_agg["avg"] is not None else None
-            ),
-            "max": (
-                round(float(summary_agg["max"]), 2) if summary_agg["max"] is not None else None
-            ),
-            "min": (
-                round(float(summary_agg["min"]), 2) if summary_agg["min"] is not None else None
-            ),
-            "sum": (
-                round(float(summary_agg["sum_v"]), 2) if summary_agg["sum_v"] is not None else None
-            ),
-        }
-
-        dropped = total_before - int(summary_row["rows"])
-        if dropped > 0:
-            parts = [
-                "Строка считается некорректной, если для выбранных колонок «Дата/время» или «Значение» "
-                "значение пустое, пробелы, NULL/пустая строка, либо формат не удаётся распознать "
-                "(дата не читается как дата, число — как число)."
-            ]
-            parts.append(
-                f"Исключено таких строк: {dropped} из {total_before}. "
-                f"Пустое/отсутствующее время: {empty_ts}; не распознано как дата: {bad_ts_parse}; "
-                f"пустое/отсутствующее значение: {empty_val}; не распознано как число: {bad_val_parse}."
-            )
-            warnings.append(" ".join(parts))
-
-        if cat_col and cat_col in df.columns and "__raw_cat" in df_clean.columns:
-            by_cat_df = (
-                df_clean.groupBy(F.col("__raw_cat").cast(StringType()).alias("category"))
-                .agg(F.count("*").alias("rows"), F.avg("__val").alias("avg_value"))
-                .orderBy(F.col("rows").desc())
-            )
-            by_category = [
-                {
-                    "category": r["category"],
-                    "rows": int(r["rows"]),
-                    "avg_value": float(r["avg_value"]),
-                }
-                for r in by_cat_df.collect()
-            ]
-
-        work_ts = df_clean.select("__ts", "__val")
-        for unit in ("hour", "day", "month", "year"):
-            by_time_df = (
-                work_ts.groupBy(F.date_trunc(unit, F.col("__ts")).alias("bucket"))
-                .agg(
-                    F.count("*").alias("rows"),
-                    F.sum("__val").alias("sum_value"),
-                    F.avg("__val").alias("avg_value"),
+            dropped = total_before - int(summary_row["rows"])
+            if dropped > 0:
+                parts = [
+                    "Строка считается некорректной, если для выбранных колонок «Дата/время» или «Значение» "
+                    "значение пустое, пробелы, NULL/пустая строка, либо формат не удаётся распознать "
+                    "(дата не читается как дата, число — как число)."
+                ]
+                parts.append(
+                    f"Исключено таких строк: {dropped} из {total_before}. "
+                    f"Пустое/отсутствующее время: {empty_ts}; не распознано как дата: {bad_ts_parse}; "
+                    f"пустое/отсутствующее значение: {empty_val}; не распознано как число: {bad_val_parse}."
                 )
-                .orderBy(F.col("bucket").asc())
-            )
-            timeseries_by_granularity[unit] = [
-                {
-                    "ts": _format_bucket(r["bucket"], unit),
-                    "rows": int(r["rows"]),
-                    "sum_value": float(r["sum_value"]),
-                    "value": float(r["avg_value"]),
-                }
-                for r in by_time_df.collect()
-            ]
+                warnings.append(" ".join(parts))
+
+            if cat_col and cat_col in df.columns and "__raw_cat" in df_clean.columns:
+                by_cat_df = (
+                    df_clean.groupBy(
+                        F.col("__raw_cat").cast(StringType()).alias("category")
+                    )
+                    .agg(F.count("*").alias("rows"), F.avg("__val").alias("avg_value"))
+                    .orderBy(F.col("rows").desc())
+                )
+                by_category = [
+                    {
+                        "category": r["category"],
+                        "rows": int(r["rows"]),
+                        "avg_value": float(r["avg_value"]),
+                    }
+                    for r in by_cat_df.collect()
+                ]
+
+            work_ts = df_clean.select("__ts", "__val")
+            for unit in ("hour", "day", "month", "year"):
+                by_time_df = (
+                    work_ts.groupBy(F.date_trunc(unit, F.col("__ts")).alias("bucket"))
+                    .agg(
+                        F.count("*").alias("rows"),
+                        F.sum("__val").alias("sum_value"),
+                        F.avg("__val").alias("avg_value"),
+                    )
+                    .orderBy(F.col("bucket").asc())
+                )
+                timeseries_by_granularity[unit] = [
+                    {
+                        "ts": _format_bucket(r["bucket"], unit),
+                        "rows": int(r["rows"]),
+                        "sum_value": float(r["sum_value"]),
+                        "value": float(r["avg_value"]),
+                    }
+                    for r in by_time_df.collect()
+                ]
 
     timeseries = timeseries_by_granularity.get("hour", [])
 
@@ -537,6 +685,7 @@ def run_csv_analysis(
         },
         "schema": schema_rows,
         "numeric_stats": numeric_stats,
+        "numeric_top_values": numeric_top_values,
         "by_category": by_category,
         "timeseries": timeseries,
         "timeseries_by_granularity": timeseries_by_granularity,
